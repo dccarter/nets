@@ -255,7 +255,7 @@ export function isKeyword(ident: string): Tok | undefined {
 /**
  * List of tokens supported by our Lexer
  */
-const TOKEN_LIST: { [key: string]: any }[] = [
+export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "<eof>" },
   ...KEYWORDS_LIST,
   { s: "<bool>" },
@@ -336,16 +336,15 @@ export class Token {
     public readonly id: Tok,
     public readonly range?: Range,
     public readonly value?: TokenValue
-  ) {}
+  ) { }
 
   info(): { [key: string]: any } {
     return TOKEN_LIST[this.id];
   }
 
   toString(): string {
-    return `${Tok[this.id]} -> ${
-      this.value !== undefined ? this.value : this.info().s
-    }`;
+    return `${Tok[this.id]} -> ${this.value !== undefined ? this.value : this.info().s
+      }`;
   }
 }
 

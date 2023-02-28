@@ -65,11 +65,31 @@ export class Range {
       `range merge this.start (=${this.start.pos}) must be <= range.start (=${range.start.pos})`
     );
     assert(
-      this.end.pos <= range.end.pos,
-      `range merge this.end (=${this.end.pos}) must be <= range.end (=${range.end.pos})`
+      this.end.pos >= range.start.pos,
+      `range merge this.end (=${this.end.pos}) must be <= range.start (=${range.start.pos})`
     );
 
     return new Range(this.source, this.start, range.end);
+  }
+
+  static extend(lhs?: Range, rhs?: Range) {
+    if (!lhs) return rhs
+    if (!rhs) return lhs
+
+    assert(
+      lhs.source == rhs.source,
+      "Can only merge ranges from same source"
+    );
+    assert(
+      lhs.start.pos <= rhs.start.pos,
+      `range merge this.start (=${lhs.start.pos}) must be <= range.start (=${rhs.start.pos})`
+    );
+    assert(
+      lhs.end.pos <= rhs.end.pos,
+      `range merge this.end (=${lhs.end.pos}) must be <= range.start (=${rhs.start.pos})`
+    );
+
+    return new Range(lhs.source, lhs.start, rhs.end);
   }
 
   str(): string {

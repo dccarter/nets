@@ -49,10 +49,11 @@ export function fmt(style: FormatStyle): string {
   return `${str}3${style[1]}m`;
 }
 
-export const fmtReset: FormatStyle = [fmsNormal, fmcNormal];
-export const fmtError: FormatStyle = [fmsBold, fmcRed];
-export const fmtLiteral: FormatStyle = [fmsNormal, fmcMagenta];
-export const fmtKeyword: FormatStyle = [fmsBold, fmcBlue];
-export const fmtComment: FormatStyle = [fmsNormal, fmcGreen];
-export const fmtEllipsis: FormatStyle = [fmsNormal, fmcWhite];
-export const fmtLoc: FormatStyle = [fmsBold, fmcWhite];
+export const fmtReset: string = fmt([fmsNormal, fmcNormal]);
+export const fmtError: string = fmt([fmsBold, fmcRed]);
+export const fmtLiteral: string = fmt([fmsNormal, fmcMagenta]);
+export const fmtString: string = fmt([fmsNormal, fmcGreen]);
+export const fmtKeyword: string = fmt([fmsBold, fmcBlue]);
+export const fmtComment: string = fmt([fmsNormal, fmcGreen]);
+export const fmtEllipsis: string = fmt([fmsNormal, fmcWhite]);
+export const fmtLoc: string = fmt([fmsBold, fmcWhite]);
