@@ -23,14 +23,17 @@ export enum Ast {
   YieldExpr,
   NewExpr,
   BracketExpr,
+  DotExpr,
   MemberAccessExpr,
   TupleExpr,
+  StructLitExpr,
+  ArrayLitExpr
 }
 
 export class AstNode {
   public next?: AstNode = undefined;
 
-  constructor(public readonly id: Ast, public range?: Range) {}
+  constructor(public readonly id: Ast, public range?: Range) { }
 
   clone(): AstNode {
     return new AstNode(this.id, this.range);
@@ -313,12 +316,25 @@ export class BracketExpression extends AstNode {
   }
 }
 
+// .a
+export class DotExpression extends AstNode {
+  constructor(public expr: AstNode, range?: Range) {
+    super(Ast.DotExpr, range);
+  }
+
+  clone(): AstNode {
+    return new DotExpression(this.expr.clone(), this.range);
+  }
+}
+
+
 export class MemberAccessExpression extends AstNode {
   constructor(
     public target: AstNode,
     public op: Tok,
     public member: AstNode,
-    range?: Range
+    range?: Range,
+    public dot?: boolean
   ) {
     super(Ast.MemberAccessExpr, range);
   }
@@ -328,7 +344,8 @@ export class MemberAccessExpression extends AstNode {
       this.target.clone(),
       this.op,
       this.member.clone(),
-      this.range
+      this.range,
+      this.dot
     );
   }
 }
@@ -340,6 +357,34 @@ export class TupleExpression extends AstNode {
 
   clone(): AstNode {
     return new TupleExpression(this.exprs.clone(), this.range);
+  }
+
+  add(node: AstNode) {
+    this.exprs.add(node);
+  }
+}
+
+export class StructLitExpression extends AstNode {
+  constructor(public exprs: AstNodeList, range?: Range) {
+    super(Ast.StructLitExpr, range);
+  }
+
+  clone(): AstNode {
+    return new StructLitExpression(this.exprs.clone(), this.range);
+  }
+
+  add(node: AstNode) {
+    this.exprs.add(node);
+  }
+}
+
+export class ArrayLitExpression extends AstNode {
+  constructor(public exprs: AstNodeList, range?: Range) {
+    super(Ast.ArrayLitExpr, range);
+  }
+
+  clone(): AstNode {
+    return new ArrayLitExpression(this.exprs.clone(), this.range);
   }
 
   add(node: AstNode) {
@@ -384,37 +429,46 @@ export abstract class AstVisitor<T = void> {
       this.visitNewExpression(<NewExpression>curr),
     [Ast.BracketExpr]: (curr: AstNode) =>
       this.visitBracketExpression(<BracketExpression>curr),
+    [Ast.DotExpr]: (curr: AstNode) =>
+      this.visitDotExpression(<DotExpression>curr),
     [Ast.MemberAccessExpr]: (curr: AstNode) =>
       this.visitMemberAccessExpression(<MemberAccessExpression>curr),
     [Ast.TupleExpr]: (curr: AstNode) =>
-      this.visitTupleExpression(<TupleExpression>curr),
+      this.visitTupleLitExpression(<TupleExpression>curr),
+    [Ast.StructLitExpr]: (curr: AstNode) =>
+      this.visitStructLitExpression(<StructLitExpression>curr),
+    [Ast.ArrayLitExpr]: (curr: AstNode) =>
+      this.visitArrayLitExpression(<ArrayLitExpression>curr),
   };
 
   visit(node: AstNode): T | void {
     return this.dispatch[node.id](node);
   }
 
-  visitNull(node: AstNode): T | void {}
-  visitUndefined(node: AstNode): T | void {}
-  visitBoolLiteral(node: BoolLit): T | void {}
-  visitCharacterLiteral(node: CharacterLit): T | void {}
-  visitIntegerLiteral(node: IntegerLit): T | void {}
-  visitFloatLiteral(node: FloatLit): T | void {}
-  visitStringLiteral(node: StringLit): T | void {}
-  visitIdentifier(node: Identifier): T | void {}
-  visitStringExpression(node: StringExpression): T | void {}
-  visitGroupingExpression(node: GroupingExpression): T | void {}
-  visitPrefixExpression(node: PrefixExpression): T | void {}
-  visitPostfixExpression(node: PostfixExpression): T | void {}
-  visitUnaryExpression(node: UnaryExpression): T | void {}
-  visitBinaryExpression(node: BinaryExpression): T | void {}
-  visitTernaryExpression(node: TernaryExpression): T | void {}
-  visitAssignmentExpression(node: AssignmentExpression): T | void {}
-  visitCallExpression(node: CallExpression): T | void {}
-  visitSpreadExpression(node: SpreadExpression): T | void {}
-  visitYieldExpression(node: YieldExpression): T | void {}
-  visitNewExpression(node: NewExpression): T | void {}
-  visitBracketExpression(node: BracketExpression): T | void {}
-  visitMemberAccessExpression(node: MemberAccessExpression): T | void {}
-  visitTupleExpression(node: TupleExpression): T | void {}
+  visitNull(node: AstNode): T | void { }
+  visitUndefined(node: AstNode): T | void { }
+  visitBoolLiteral(node: BoolLit): T | void { }
+  visitCharacterLiteral(node: CharacterLit): T | void { }
+  visitIntegerLiteral(node: IntegerLit): T | void { }
+  visitFloatLiteral(node: FloatLit): T | void { }
+  visitStringLiteral(node: StringLit): T | void { }
+  visitIdentifier(node: Identifier): T | void { }
+  visitStringExpression(node: StringExpression): T | void { }
+  visitGroupingExpression(node: GroupingExpression): T | void { }
+  visitPrefixExpression(node: PrefixExpression): T | void { }
+  visitPostfixExpression(node: PostfixExpression): T | void { }
+  visitUnaryExpression(node: UnaryExpression): T | void { }
+  visitBinaryExpression(node: BinaryExpression): T | void { }
+  visitTernaryExpression(node: TernaryExpression): T | void { }
+  visitAssignmentExpression(node: AssignmentExpression): T | void { }
+  visitCallExpression(node: CallExpression): T | void { }
+  visitSpreadExpression(node: SpreadExpression): T | void { }
+  visitYieldExpression(node: YieldExpression): T | void { }
+  visitNewExpression(node: NewExpression): T | void { }
+  visitBracketExpression(node: BracketExpression): T | void { }
+  visitDotExpression(node: DotExpression): T | void { }
+  visitMemberAccessExpression(node: MemberAccessExpression): T | void { }
+  visitTupleLitExpression(node: TupleExpression): T | void { }
+  visitStructLitExpression(node: StructLitExpression): T | void { }
+  visitArrayLitExpression(node: ArrayLitExpression): T | void { }
 }

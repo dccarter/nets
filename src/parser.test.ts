@@ -7,6 +7,7 @@ import {
   AstNodeList,
   BinaryExpression,
   BoolLit,
+  CallExpression,
   CharacterLit,
   FloatLit,
   GroupingExpression,
@@ -190,4 +191,20 @@ describe("Parser", () => {
       });
     });
   });
+
+  describe("Call Expression", () => {
+    test("No parameters", () => {
+      const ast = parse("print()");
+      expect(ast.id).toBe(Ast.CallExpr);
+      expect((<CallExpression>ast).args.count).toBe(0)
+    })
+
+    test("With Multiple Parameters", () => {
+      const ast = parse(`print(10, 'c', print(), (1, "String"))`);
+      expect(ast.id).toBe(Ast.CallExpr);
+      expectNodeList((<CallExpression>ast).args,
+        { id: Ast.IntLit }, { id: Ast.CharLit }, { id: Ast.CallExpr }, { id: Ast.TupleExpr })
+    })
+  })
+
 });

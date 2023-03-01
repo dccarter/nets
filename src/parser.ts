@@ -1,4 +1,5 @@
 import {
+  ArrayLitExpression,
   AssignmentExpression,
   AstNode,
   AstNodeList,
@@ -7,9 +8,10 @@ import {
   BracketExpression,
   CallExpression,
   CharacterLit,
+  DotExpression,
   FloatLit,
   GroupingExpression,
-  Identifier as Identifier,
+  Identifier,
   IntegerLit,
   MemberAccessExpression,
   NewExpression,
@@ -18,11 +20,13 @@ import {
   SpreadExpression,
   StringExpression,
   StringLit,
+  StructLitExpression,
   TernaryExpression,
   TupleExpression,
   UnaryExpression,
   YieldExpression,
 } from "./ast";
+import { Ascii } from "./char";
 import { Logger } from "./diagnostics";
 import { Lexer } from "./lexer";
 import { Range } from "./source";
@@ -66,6 +70,10 @@ export class Parser {
     if (ids.includes(tok.id)) return tok;
   }
 
+  private Eof(): boolean {
+    return this.peek().id === Tok.Eof
+  }
+
   private match(...ids: Tok[]): Token | undefined {
     const tok = this.peek();
     if (ids.includes(tok.id)) {
@@ -91,7 +99,7 @@ export class Parser {
   }
 
   private expression(): AstNode {
-    return this.ternary();
+    return this.spread();
   }
 
   private spread(): AstNode {
@@ -108,7 +116,7 @@ export class Parser {
     if (this.match(Tok.Yield)) {
       const range = this.previous().range;
       const hasStar = this.match(Tok.Multiply) !== undefined;
-      const expr = this.ternary();
+      const expr = this.binding();
       return new YieldExpression(
         expr,
         hasStar,
@@ -116,7 +124,17 @@ export class Parser {
       );
     }
 
-    return this.ternary();
+    return this.binding();
+  }
+
+  private binding(): AstNode {
+    var expr = this.ternary();
+
+    if (this.match(Tok.Colon)) {
+      const rhs = this.ternary();
+      expr = new AssignmentExpression(expr, Tok.Colon, rhs, Range.extend(expr.range, rhs.range))
+    }
+    return expr
   }
 
   private ternary(): AstNode {
@@ -396,12 +414,10 @@ export class Parser {
     while (true) {
       if (this.match(Tok.LParen)) {
         const args = new AstNodeList();
-        if (!this.check(Tok.RParen)) {
-          do {
-            const arg = this.expression();
-            args.add(arg);
-          } while (this.match(Tok.Comma));
-        }
+        while (!this.check(Tok.RParen) && !this.Eof()) {
+          args.add(this.expression());
+          this.match(Tok.Comma)
+        };
 
         const tok = this.consume(
           Tok.RParen,
@@ -437,6 +453,7 @@ export class Parser {
   }
 
   private memberAccess(): AstNode {
+    const dot = this.match(Tok.Dot);
     var expr = this.primary()!;
 
     while (this.match(Tok.Dot, Tok.QuestionDot)) {
@@ -447,10 +464,12 @@ export class Parser {
         expr,
         op,
         member,
-        Range.extend(range, member.range)
+        Range.extend(range, member.range),
       );
     }
-
+    if (dot) {
+      expr = new DotExpression(expr, Range.extend(dot.range, expr.range))
+    }
     return expr;
   }
 
@@ -478,8 +497,6 @@ export class Parser {
       return new Identifier(tok?.value as string, tok?.range);
     }
 
-    const range = this.peek().range;
-
     if (this.match(Tok.LParen)) {
       const range = this.previous().range;
       var expr = this.expression();
@@ -490,16 +507,45 @@ export class Parser {
         while (this.match(Tok.Comma)) {
           tuple.add(this.expression());
         }
+        this.consume(Tok.RParen, "expecting a closing ')' to close a tuple expression.");
         tuple.range = Range.extend(range, this.previous().range);
         return tuple;
       }
 
-      this.consume(Tok.RParen, "expecting a closing ')' after expression.");
+      this.consume(Tok.RParen, "expecting a closing ')' to close a group expression.");
 
       return new GroupingExpression(
         expr,
         Range.extend(range, this.previous().range)
       );
+    }
+
+    if (this.match(Tok.LBrace)) {
+      const range = this.previous().range;
+      var init = new StructLitExpression(new AstNodeList(), range);
+
+      while (!this.check(Tok.RBrace) && !this.Eof()) {
+        init.add(this.expression());
+        this.match(Tok.Comma);
+      }
+
+      this.consume(Tok.RBrace, "expecting a closing '}' to close a struct literal expression.");
+      init.range = Range.extend(range, this.previous().range);
+      return init;
+    }
+
+    if (this.match(Tok.LBracket)) {
+      const range = this.previous().range;
+      var init = new ArrayLitExpression(new AstNodeList(), range);
+
+      while (!this.check(Tok.RBracket) && !this.Eof()) {
+        init.add(this.expression());
+        this.match(Tok.Comma);
+      }
+
+      this.consume(Tok.RBracket, "expecting a closing ']' to close an array literal expression.");
+      init.range = Range.extend(range, this.previous().range);
+      return init;
     }
 
     this.error("unexpected token, expecting an expression");

@@ -1,13 +1,16 @@
 import {
+  ArrayLitExpression,
   AssignmentExpression,
   Ast,
   AstNode,
+  AstNodeList,
   AstVisitor,
   BinaryExpression,
   BoolLit,
   BracketExpression,
   CallExpression,
   CharacterLit,
+  DotExpression,
   FloatLit,
   GroupingExpression,
   Identifier,
@@ -19,6 +22,7 @@ import {
   SpreadExpression,
   StringExpression,
   StringLit,
+  StructLitExpression,
   TernaryExpression,
   TupleExpression,
   UnaryExpression,
@@ -41,24 +45,31 @@ export class AstPrinter extends AstVisitor {
   visitUndefined(node: AstNode): void {
     write(`${fmtKeyword}undefined${fmtReset}`);
   }
+
   visitBoolLiteral(node: BoolLit): void {
     write(`${fmtKeyword}${node.value}${fmtReset}`);
   }
+
   visitCharacterLiteral(node: CharacterLit): void {
     write(`${fmtLiteral}'${node.value}'${fmtReset}`);
   }
+
   visitIntegerLiteral(node: IntegerLit): void {
     write(`${fmtLiteral}${node.value}${fmtReset}`);
   }
+
   visitFloatLiteral(node: FloatLit): void {
     write(`${fmtLiteral}${node.value}${fmtReset}`);
   }
+
   visitStringLiteral(node: StringLit): void {
     write(`${fmtLiteral}"${node.value}"${fmtReset}`);
   }
+
   visitIdentifier(node: Identifier): void {
     write(node.name);
   }
+
   visitStringExpression(node: StringExpression): void {
     write(`${fmtString}\`${fmtReset}`);
     var part = node.parts.first;
@@ -74,28 +85,34 @@ export class AstPrinter extends AstVisitor {
     }
     write(`${fmtString}\`${fmtReset}`);
   }
+
   visitGroupingExpression(node: GroupingExpression): void {
     write("(");
     this.visit(node.expr);
     write(")");
   }
+
   visitPrefixExpression(node: PrefixExpression): void {
     write(TOKEN_LIST[node.op].s);
     this.visit(node.expr);
   }
+
   visitPostfixExpression(node: PostfixExpression): void {
     this.visit(node.expr);
     write(TOKEN_LIST[node.op].s);
   }
+
   visitUnaryExpression(node: UnaryExpression): void {
     write(TOKEN_LIST[node.op].s);
     this.visit(node.expr);
   }
+
   visitBinaryExpression(node: BinaryExpression): void {
     this.visit(node.lhs);
     write(" ", TOKEN_LIST[node.op].s, " ");
     this.visit(node.rhs);
   }
+
   visitTernaryExpression(node: TernaryExpression): void {
     this.visit(node.cond);
     write("? ");
@@ -146,20 +163,42 @@ export class AstPrinter extends AstVisitor {
     write("]");
   }
 
+  visitDotExpression(node: DotExpression): void {
+    write(".");
+    this.visit(node.expr);
+  }
+
   visitMemberAccessExpression(node: MemberAccessExpression): void {
+    if (node.dot) write('.');
     this.visit(node.target);
     write(TOKEN_LIST[node.op].s);
     this.visit(node.member);
   }
 
-  visitTupleExpression(node: TupleExpression): void {
-    write("(");
-    var expr = node.exprs.first;
+  printAstNodeList(list: AstNodeList): void {
+    var expr = list.first;
     while (expr) {
       this.visit(expr);
       expr = expr.next;
       if (expr) write(", ");
     }
+  }
+
+  visitTupleLitExpression(node: TupleExpression): void {
+    write("(");
+    this.printAstNodeList(node.exprs)
     write(")");
+  }
+
+  visitStructLitExpression(node: StructLitExpression): void {
+    write("{");
+    this.printAstNodeList(node.exprs)
+    write("}");
+  }
+
+  visitArrayLitExpression(node: ArrayLitExpression): void {
+    write("[");
+    this.printAstNodeList(node.exprs)
+    write("]");
   }
 }

@@ -1,5 +1,4 @@
 import { expect, test, describe } from "bun:test";
-import { Ascii } from "./char";
 import { Logger } from "./diagnostics";
 import { Lexer } from "./lexer";
 import { Source } from "./source";

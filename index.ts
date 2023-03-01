@@ -6,7 +6,7 @@ import { Source } from "./src/source";
 import { Timers } from "./src/timer";
 
 const L = new Logger();
-const src = new Source("<stdin>", "a = (10, 'a', `Hello ${a}`, (5, 6))");
+const src = new Source("<stdin>", `user = {a: 20, b: 30}`);
 const lexer = new Lexer(L, src);
 
 const parser = new Parser(L, lexer);

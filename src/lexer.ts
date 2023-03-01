@@ -36,7 +36,7 @@ export class Lexer {
   _fStrExpr?: Token = undefined;
   _pos: LineColumn = { line: 1, column: 0 };
 
-  constructor(public readonly L: Logger, private source: Source) {}
+  constructor(public readonly L: Logger, private source: Source) { }
 
   getChar(index?: number): Char {
     index ??= this._index;
@@ -169,9 +169,12 @@ export class Lexer {
     // Parse integral part
     while (isDigit(this.getChar())) this.skipChar();
 
-    var hasDot = false;
-    if (this.acceptChar(".")) {
-      hasDot = true;
+    return this.finishParsingNumber(this.acceptChar('.'), p);
+  }
+
+  finishParsingNumber(isFloat: boolean, p: Location): Token {
+
+    if (isFloat) {
       // Parse fractional part
       while (isDigit(this.getChar())) this.skipChar();
 
@@ -186,7 +189,7 @@ export class Lexer {
 
     const str = this.source.content.subarray(p.pos, this._index).toString();
 
-    return hasDot
+    return isFloat
       ? new FloatToken(parseFloat(str), this.range(p))
       : new IntegerToken(parseInt(str), this.range(p));
   }
@@ -287,7 +290,13 @@ export class Lexer {
             }
             return new Token(Tok.DotDot, this.range(p));
           }
+
+          if (isDigit(this.getChar())) {
+            console.log("Here")
+            return this.finishParsingNumber(true, p)
+          }
           return new Token(Tok.Dot, this.range(p));
+
         case Ascii[","]:
           return new Token(Tok.Comma, this.range(p));
         case Ascii[";"]:
