@@ -266,7 +266,7 @@ export class Lexer {
         case Ascii[")"]:
           return new Token(Tok.RParen, this.range(p));
         case Ascii["["]:
-          return new Token(Tok.LBrace, this.range(p));
+          return new Token(Tok.LBracket, this.range(p));
         case Ascii["]"]:
           return new Token(Tok.RBracket, this.range(p));
         case Ascii["{"]:
@@ -307,6 +307,10 @@ export class Lexer {
               return new Token(Tok.DQuestionEq, this.range(p));
             return new Token(Tok.DQuestion, this.range(p));
           }
+
+          if (this.acceptChar("."))
+            return new Token(Tok.QuestionDot, this.range(p));
+
           return new Token(Tok.Question, this.range(p));
 
         case Ascii["+"]:
@@ -377,12 +381,12 @@ export class Lexer {
 
         case Ascii["!"]:
           if (this.acceptChar("=")) {
-            if (this.acceptChar("-"))
+            if (this.acceptChar("="))
               return new Token(Tok.StrictNotEq, this.range(p));
 
             return new Token(Tok.NotEq, this.range(p));
           }
-          return new Token(Tok.BNot, this.range(p));
+          return new Token(Tok.LNot, this.range(p));
 
         case Ascii["%"]:
           if (this.acceptChar("=")) return new Token(Tok.ModEq, this.range(p));

@@ -4,18 +4,24 @@ import {
   AstNodeList,
   BinaryExpression,
   BoolLit,
+  BracketExpression,
   CallExpression,
   CharacterLit,
   FloatLit,
   GroupingExpression,
   Identifier as Identifier,
   IntegerLit,
+  MemberAccessExpression,
+  NewExpression,
   PostfixExpression,
   PrefixExpression,
+  SpreadExpression,
   StringExpression,
   StringLit,
   TernaryExpression,
+  TupleExpression,
   UnaryExpression,
+  YieldExpression,
 } from "./ast";
 import { Logger } from "./diagnostics";
 import { Lexer } from "./lexer";
@@ -41,14 +47,14 @@ export class Parser {
   }
 
   private advance(): Token {
-    var tok = this.la[1]
+    var tok = this.la[1];
     this.la.shift()!;
     this.la[3] = this.lexer.next();
     return tok;
   }
 
   private previous(): Token {
-    return this.la[0]
+    return this.la[0];
   }
 
   private peek(at: 1 | 2 | 3 = 1): Token {
@@ -63,33 +69,76 @@ export class Parser {
   private match(...ids: Tok[]): Token | undefined {
     const tok = this.peek();
     if (ids.includes(tok.id)) {
-      this.advance()
+      this.advance();
       return tok;
     }
   }
 
-  private consume(id: Tok, msg?: string): Token | undefined {
+  private consume(id: Tok, msg?: string): Token {
     const tok = this.check(id);
     if (!tok) {
       const curr = this.peek();
       this.L.error(curr.range!, msg);
       throw Error();
     }
+    this.advance();
     return tok;
   }
 
   private error(msg: string) {
     this.L.error(this.peek().range!, msg);
-    throw Error()
+    throw Error();
   }
 
-
   private expression(): AstNode {
-    return this.assignment()
+    return this.ternary();
+  }
+
+  private spread(): AstNode {
+    if (this.match(Tok.DotDotDot)) {
+      const range = this.previous().range;
+      const expr = this.yieldExpr();
+      return new SpreadExpression(expr, Range.extend(range, expr.range));
+    }
+
+    return this.yieldExpr();
+  }
+
+  private yieldExpr(): AstNode {
+    if (this.match(Tok.Yield)) {
+      const range = this.previous().range;
+      const hasStar = this.match(Tok.Multiply) !== undefined;
+      const expr = this.ternary();
+      return new YieldExpression(
+        expr,
+        hasStar,
+        Range.extend(expr.range, range)
+      );
+    }
+
+    return this.ternary();
+  }
+
+  private ternary(): AstNode {
+    var expr = this.assignment();
+    if (this.match(Tok.Question)) {
+      const ifTrue = this.ternary();
+
+      this.consume(
+        Tok.Colon,
+        "expecting a colon ':' to separate a ternary expression."
+      );
+
+      const ifFalse = this.ternary();
+      expr = new TernaryExpression(expr, ifTrue, ifFalse, expr.range);
+      expr.range = Range.extend(expr.range, ifFalse.range);
+    }
+
+    return expr;
   }
 
   private assignment(): AstNode {
-    var expr = this.ternary();
+    var expr = this.coalescing();
     switch (this.peek().id) {
       case Tok.Assign:
       case Tok.MinusEq:
@@ -107,27 +156,13 @@ export class Parser {
       case Tok.LOrEq:
       case Tok.PowEq:
       case Tok.DQuestionEq:
-        const op = this.advance().id
-        const value = this.assignment()
-        expr = new AssignmentExpression(expr, op, value, expr.range)
-        expr.range = Range.extend(expr.range, value.range)
-        return expr
+        const op = this.advance().id;
+        const value = this.assignment();
+        expr = new AssignmentExpression(expr, op, value, expr.range);
+        expr.range = Range.extend(expr.range, value.range);
+        return expr;
       default:
-        break
-    }
-
-    return expr
-  }
-
-  private ternary(): AstNode {
-    var expr = this.coalescing();
-    if (this.match(Tok.Question)) {
-      const ifTrue = this.ternary();
-      this.consume(Tok.Colon,
-        "expecting a colon ':' to separate a ternary expression.");
-      const ifFalse = this.ternary();
-      expr = new TernaryExpression(expr, ifTrue, ifFalse, expr.range);
-      expr.range = Range.extend(expr.range, ifFalse.range);
+        break;
     }
 
     return expr;
@@ -218,12 +253,28 @@ export class Parser {
   }
 
   private comparison(): AstNode {
+    var expr = this.bitshift();
+
+    while (
+      this.match(Tok.Gt, Tok.Gte, Tok.Lt, Tok.Lte, Tok.In, Tok.Instanceof)
+    ) {
+      const op = this.previous().id;
+      const right = this.bitshift();
+      expr = new BinaryExpression(expr, op, right, expr.range);
+      expr.range = Range.extend(expr.range, right.range);
+    }
+
+    return expr;
+  }
+
+  private bitshift(): AstNode {
     var expr = this.terminal();
 
-    while (this.match(Tok.Gt, Tok.Gte, Tok.Lt, Tok.Lte)) {
-      const op = this.previous().id;
+    while (this.match(Tok.Shl, Tok.Shr, Tok.AShr)) {
+      const op = this.previous();
       const right = this.terminal();
-      expr = new BinaryExpression(expr, op, right, expr.range);
+
+      expr = new BinaryExpression(expr, op.id, right, expr.range);
       expr.range = Range.extend(expr.range, right.range);
     }
 
@@ -245,11 +296,11 @@ export class Parser {
   }
 
   private factor(): AstNode {
-    var expr = this.nots();
+    var expr = this.exponentiation();
 
-    while (this.match(Tok.Divide, Tok.Multiply)) {
+    while (this.match(Tok.Divide, Tok.Multiply, Tok.Mod)) {
       const op = this.previous();
-      const right = this.nots();
+      const right = this.exponentiation();
 
       expr = new BinaryExpression(expr, op.id, right, expr.range);
       expr.range = Range.extend(expr.range, right.range);
@@ -258,18 +309,17 @@ export class Parser {
     return expr;
   }
 
-  private unary(): AstNode {
-    if (this.match(Tok.Plus, Tok.Minus)) {
-      const op = this.previous();
-      const right = this.unary();
+  private exponentiation(): AstNode {
+    var expr = this.nots();
 
-      const expr = new UnaryExpression(op.id, right);
-      expr.range = Range.extend(op.range, right.range);
+    while (this.match(Tok.Pow)) {
+      const right = this.nots();
 
-      return expr;
+      expr = new BinaryExpression(expr, Tok.Pow, right, expr.range);
+      expr.range = Range.extend(expr.range, right.range);
     }
 
-    return this.prefix();
+    return expr;
   }
 
   private nots(): AstNode {
@@ -286,37 +336,31 @@ export class Parser {
     return this.unary();
   }
 
-  private call(): AstNode {
-    var expr = this.primary()!;
+  private unary(): AstNode {
+    if (this.match(Tok.Plus, Tok.Minus)) {
+      const op = this.previous();
+      const right = this.unary();
 
-    while (true) {
-      if (this.match(Tok.LParen)) {
-        const args = new AstNodeList()
-        if (!this.check(Tok.RParen)) {
-          do {
-            const arg = this.expression();
-            args.add(arg);
-          } while (this.match(Tok.Comma));
-        }
+      const expr = new UnaryExpression(op.id, right);
+      expr.range = Range.extend(op.range, right.range);
 
-        const tok = this.consume(
-          Tok.RParen,
-          "expecting a closing paren '(' to end function arguments");
-
-        const call = new CallExpression(expr, args);
-        call.range = Range.extend(expr?.range, tok!.range);
-        expr = call;
-      }
-      else {
-        break;
-      }
+      return expr;
     }
 
-    return expr;
+    return this.prefix();
   }
 
   private prefix(): AstNode {
-    if (this.match(Tok.MinusMinus, Tok.PlusPlus)) {
+    if (
+      this.match(
+        Tok.MinusMinus,
+        Tok.PlusPlus,
+        Tok.Typeof,
+        Tok.Delete,
+        Tok.Await,
+        Tok.Void
+      )
+    ) {
       const op = this.previous();
       const right = this.prefix();
 
@@ -326,46 +370,136 @@ export class Parser {
       return expr;
     }
 
-    var expr = this.call();
+    var expr = this.newExpr();
     while (this.match(Tok.MinusMinus, Tok.PlusPlus)) {
       const op = this.previous();
       expr = new PostfixExpression(op.id, expr);
-      expr.range = Range.extend(expr.range, op.range)
+      expr.range = Range.extend(expr.range, op.range);
     }
 
     return expr;
   }
 
-  private primary() {
-    const expr = this.literal();
-    if (expr) {
-      this.advance()
-      return expr;
+  private newExpr(): AstNode {
+    if (this.match(Tok.New)) {
+      const range = this.previous().range;
+      const expr = this.call();
+      return new NewExpression(expr, Range.extend(range, expr.range));
+    }
+
+    return this.call();
+  }
+
+  private call(): AstNode {
+    var expr = this.bracket()!;
+
+    while (true) {
+      if (this.match(Tok.LParen)) {
+        const args = new AstNodeList();
+        if (!this.check(Tok.RParen)) {
+          do {
+            const arg = this.expression();
+            args.add(arg);
+          } while (this.match(Tok.Comma));
+        }
+
+        const tok = this.consume(
+          Tok.RParen,
+          "expecting a closing paren '(' to end function arguments"
+        );
+
+        const call = new CallExpression(expr, args);
+        call.range = Range.extend(expr?.range, tok!.range);
+        expr = call;
+      } else {
+        break;
+      }
+    }
+
+    return expr;
+  }
+
+  private bracket(): AstNode {
+    var expr = this.memberAccess();
+
+    while (this.match(Tok.LBracket)) {
+      const range = expr?.range;
+      const index = this.expression();
+      this.consume(Tok.RBracket, "expecting a closing bracket ']'");
+      expr = new BracketExpression(
+        expr,
+        index,
+        Range.extend(range, index.range)
+      );
+    }
+
+    return expr;
+  }
+
+  private memberAccess(): AstNode {
+    var expr = this.primary()!;
+
+    while (this.match(Tok.Dot, Tok.QuestionDot)) {
+      const range = expr?.range;
+      const op = this.previous().id;
+      const member = this.expression();
+      expr = new MemberAccessExpression(
+        expr,
+        op,
+        member,
+        Range.extend(range, member.range)
+      );
+    }
+
+    return expr;
+  }
+
+  private primary(): AstNode | undefined {
+    const lit = this.literal();
+    if (lit) {
+      this.advance();
+      return lit;
     }
 
     if (this.check(Tok.LStrExpr)) {
-      var tok = this.advance()
-      const expr = new StringExpression(tok?.range);
+      var tok = this.advance();
+      var str = new StringExpression(tok?.range);
       while (!this.match(Tok.RStrExpr)) {
-        expr.add(this.expression())
-        tok = this.peek()
+        str.add(this.expression());
+        tok = this.peek();
       }
 
-      expr.range = Range.extend(tok.range, this.previous().range)
-      return expr;
+      str.range = Range.extend(tok.range, this.previous().range);
+      return str;
     }
 
     if (this.check(Tok.Ident)) {
       var tok = this.advance();
-      return new Identifier(tok?.value as string, tok?.range)
+      return new Identifier(tok?.value as string, tok?.range);
     }
 
-    const range = this.peek().range
+    const range = this.peek().range;
+
     if (this.match(Tok.LParen)) {
-      const expr = this.expression();
+      const range = this.previous().range;
+      var expr = this.expression();
+      if (this.check(Tok.Comma)) {
+        // this should be a tuple expression
+        var tuple = new TupleExpression(new AstNodeList(), range);
+        tuple.add(expr);
+        while (this.match(Tok.Comma)) {
+          tuple.add(this.expression());
+        }
+        tuple.range = Range.extend(range, this.previous().range);
+        return tuple;
+      }
+
       this.consume(Tok.RParen, "expecting a closing ')' after expression.");
 
-      return new GroupingExpression(expr, Range.extend(range, this.previous().range));
+      return new GroupingExpression(
+        expr,
+        Range.extend(range, this.previous().range)
+      );
     }
 
     this.error("unexpected token, expecting an expression");
@@ -376,7 +510,7 @@ export class Parser {
     switch (tok?.id) {
       case Tok.True:
       case Tok.False:
-        return new BoolLit(tok.id === Tok.True, tok.range)
+        return new BoolLit(tok.id === Tok.True, tok.range);
       case Tok.CharLit:
         return new CharacterLit(tok.value as string, tok.range);
       case Tok.StrLit:
@@ -386,7 +520,7 @@ export class Parser {
       case Tok.FloatLit:
         return new FloatLit(tok.value as number, tok.range);
       default:
-        return undefined
+        return undefined;
     }
   }
 }

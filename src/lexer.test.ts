@@ -15,7 +15,7 @@ function expectTokens(
 ) {
   for (const expected of all) {
     const tok = lexer.next();
-    // console.log(Tok[tok.id], Tok[expected.id], tok.value);
+    console.log(Tok[tok.id], Tok[expected.id], tok.value);
 
     expect(tok.id).toBe(expected.id);
     expect(tok.value).toBe(expected.value);
@@ -91,7 +91,6 @@ describe("Lexer", () => {
         lexer,
         { id: Tok.LStrExpr },
         { id: Tok.StrLit, value: "Hello " },
-        { id: Tok.Invalid },
         { id: Tok.StrLit, value: " " },
         { id: Tok.RStrExpr },
         { id: Tok.Eof }
