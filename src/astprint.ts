@@ -1,3 +1,5 @@
+import assert from "assert";
+
 import {
   ArrayLitExpression,
   AssignmentExpression,
@@ -10,8 +12,12 @@ import {
   BracketExpression,
   CallExpression,
   CharacterLit,
+  ClosureExpression,
+  CodeBlock,
   DotExpression,
+  ExpressionStatement,
   FloatLit,
+  FunctionDeclaration,
   GroupingExpression,
   Identifier,
   IntegerLit,
@@ -19,6 +25,8 @@ import {
   NewExpression,
   PostfixExpression,
   PrefixExpression,
+  PrimitiveIdent,
+  Program,
   SpreadExpression,
   StringExpression,
   StringLit,
@@ -26,6 +34,7 @@ import {
   TernaryExpression,
   TupleExpression,
   UnaryExpression,
+  VariableDeclaration,
   YieldExpression,
 } from "./ast";
 import { fmtKeyword, fmtLiteral, fmtReset, fmtString } from "./format";
@@ -38,12 +47,35 @@ function write(...strs: string[]) {
 }
 
 export class AstPrinter extends AstVisitor {
+  #indent = "";
+  #push() {
+    return (this.#indent = " ".repeat(this.#indent.length + 2));
+  }
+
+  #pop() {
+    assert(this.#indent.length !== 0);
+    return (this.#indent = " ".repeat(this.#indent.length - 2));
+  }
+
+  visitProgram(node: Program): void {
+    var next = node.nodes.first;
+    while (next) {
+      this.visit(next);
+      write("\n");
+      next = next.next;
+    }
+  }
+
   visitNull(node: AstNode): void {
     write(`${fmtLiteral}null${fmtReset}`);
   }
 
   visitUndefined(node: AstNode): void {
     write(`${fmtKeyword}undefined${fmtReset}`);
+  }
+
+  visitPrimitive(node: PrimitiveIdent): void {
+    write(`${fmtKeyword}${TOKEN_LIST[node.tok].s}${fmtReset}`);
   }
 
   visitBoolLiteral(node: BoolLit): void {
@@ -169,36 +201,88 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitMemberAccessExpression(node: MemberAccessExpression): void {
-    if (node.dot) write('.');
+    if (node.dot) write(".");
     this.visit(node.target);
     write(TOKEN_LIST[node.op].s);
     this.visit(node.member);
   }
 
-  printAstNodeList(list: AstNodeList): void {
+  printAstNodeList(list: AstNodeList, sep: string = ", "): void {
     var expr = list.first;
     while (expr) {
       this.visit(expr);
       expr = expr.next;
-      if (expr) write(", ");
+      if (expr) write(sep);
     }
   }
 
   visitTupleLitExpression(node: TupleExpression): void {
     write("(");
-    this.printAstNodeList(node.exprs)
+    this.printAstNodeList(node.exprs);
     write(")");
   }
 
   visitStructLitExpression(node: StructLitExpression): void {
     write("{");
-    this.printAstNodeList(node.exprs)
+    this.printAstNodeList(node.exprs);
     write("}");
   }
 
   visitArrayLitExpression(node: ArrayLitExpression): void {
     write("[");
-    this.printAstNodeList(node.exprs)
+    this.printAstNodeList(node.exprs);
     write("]");
+  }
+
+  visitClosureExpression(node: ClosureExpression): void {
+    if (node.isAsync) write(fmtKeyword, "async", fmtReset, " ");
+    this.visit(node.signature);
+    write(" => ");
+    this.visit(node.body);
+  }
+
+  visitVariableDeclaration(node: VariableDeclaration): void {
+    write(
+      this.#indent,
+      `${fmtKeyword}${TOKEN_LIST[node.modifier].s}${fmtReset} `
+    );
+    this.visit(node.varible);
+    if (node.type) {
+      write(" : ");
+      this.visit(node.type);
+    }
+    if (node.init) {
+      write(" = ");
+      this.visit(node.init);
+    }
+  }
+
+  visitExpressionStatement(node: ExpressionStatement): void {
+    write(this.#indent);
+    this.visit(node.expr);
+  }
+
+  visitCodeBlock(node: CodeBlock): void {
+    write(this.#indent, "{\n");
+    this.#push();
+    this.printAstNodeList(node.nodes, "\n");
+    this.#pop();
+    write("\n", this.#indent, "}");
+  }
+
+  visitFunctionDeclaration(node: FunctionDeclaration): void {
+    write(this.#indent);
+    if (node.isAsync) write(fmtKeyword, "async ", fmtReset);
+    write(fmtKeyword, "func", fmtReset);
+    write(" ", node.name);
+    this.visit(node.args);
+    write(" ");
+    if (node.ret) {
+      write(": ");
+      this.visit(node.ret);
+      write(" ");
+    }
+    if (node.body.id !== Ast.Block) write("= ");
+    this.visit(node.body);
   }
 }

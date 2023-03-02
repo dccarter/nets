@@ -3,67 +3,57 @@ import { escapeCharaterString } from "./char";
 
 export enum Tok {
   Eof,
-  Abstract,
-  KwStart = Abstract,
-  Accessor,
   Any,
+  KwStart = Any,
   As,
-  Asserts,
   Assert,
-  Bigint,
-  Boolean,
+  Auto,
+  Bool,
   Break,
   Case,
   Catch,
+  Char,
   Class,
   Continue,
   Const,
-  Constructor,
   Debugger,
-  Declare,
   Default,
+  Defer,
   Delete,
   Do,
   Else,
   Enum,
   Export,
   Extends,
+  F32,
+  F64,
   False,
   Finally,
   For,
   From,
-  Function,
-  Get,
+  Func,
   If,
-  Implements,
   Import,
   In,
-  Infer,
+  I8,
+  I16,
+  I32,
+  I64,
+  I128,
   Instanceof,
   Interface,
-  Intrinsic,
   Is,
   Keyof,
   Let,
-  Module,
-  Namespace,
-  Never,
   New,
   Null,
-  Number,
-  Object,
   Package,
   Private,
   Protected,
   Public,
   Override,
-  Out,
-  Readonly,
-  Require,
-  Global,
   Return,
   Satisfies,
-  Set,
   Static,
   String,
   Super,
@@ -75,9 +65,12 @@ export enum Tok {
   Try,
   Type,
   Typeof,
+  U8,
+  U16,
+  U32,
+  U64,
+  U128,
   Undefined,
-  Unique,
-  Unknown,
   Var,
   Void,
   While,
@@ -158,27 +151,16 @@ export enum Tok {
   Invalid,
 }
 
-export function isKeyword(ident: string): Tok | undefined {
-  const c1 = ident[0].toUpperCase();
-  if (c1 == ident[0]) return undefined;
-
-  ident = c1 + ident.slice(1);
-  var value: Tok = (<any>Tok)[ident];
-  if (value) {
-    if (value >= Tok.KwStart || value <= Tok.KwEnd) return value;
-  }
-  return undefined;
-}
-
 export enum TFlags {
-  UnaryOp = 0b00000001,
-  BinaryOp = 0b00000010,
-  LogicOp = 0b00000100,
-  TernaryOp = 0b00001000,
-  AssignmentOp = 0b00010000,
-  PrefixOp = 0b00100000,
-  PostfixOp = 0b01000000,
-  Keyword = 0b10000000,
+  UnaryOp = 0b0000000000000001,
+  BinaryOp = 0b0000000000000010,
+  LogicOp = 0b0000000000000100,
+  TernaryOp = 0b0000000000001000,
+  AssignmentOp = 0b0000000000010000,
+  PrefixOp = 0b0000000000100000,
+  PostfixOp = 0b0000000001000000,
+  Keyword = 0b0000000010000000,
+  Type = 0b0000000100000000,
 }
 
 /**
@@ -186,68 +168,58 @@ export enum TFlags {
  */
 export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "<eof>", flags: TFlags.Keyword },
-  { s: "abstract", flags: TFlags.Keyword },
-  { s: "accessor", flags: TFlags.Keyword },
-  { s: "any", flags: TFlags.Keyword },
+  { s: "any", flags: TFlags.Keyword | TFlags.Type },
   { s: "as", flags: TFlags.Keyword },
-  { s: "asserts", flags: TFlags.Keyword },
   { s: "assert", flags: TFlags.Keyword },
-  { s: "bigint", flags: TFlags.Keyword },
-  { s: "boolean", flags: TFlags.Keyword },
+  { s: "auto", flags: TFlags.Keyword },
+  { s: "bool", flags: TFlags.Keyword | TFlags.Type },
   { s: "break", flags: TFlags.Keyword },
   { s: "case", flags: TFlags.Keyword },
   { s: "catch", flags: TFlags.Keyword },
+  { s: "char", flags: TFlags.Keyword | TFlags.Type },
   { s: "class", flags: TFlags.Keyword },
   { s: "continue", flags: TFlags.Keyword },
   { s: "const", flags: TFlags.Keyword },
-  { s: "constructor", flags: TFlags.Keyword },
   { s: "debugger", flags: TFlags.Keyword },
-  { s: "declare", flags: TFlags.Keyword },
   { s: "default", flags: TFlags.Keyword },
+  { s: "defer", flags: TFlags.Keyword },
   { s: "delete", flags: TFlags.Keyword | TFlags.PrefixOp },
   { s: "do", flags: TFlags.Keyword },
   { s: "else", flags: TFlags.Keyword },
   { s: "enum", flags: TFlags.Keyword },
   { s: "export", flags: TFlags.Keyword },
   { s: "extends", flags: TFlags.Keyword },
+  { s: "f32", flags: TFlags.Keyword | TFlags.Type },
+  { s: "f64", flags: TFlags.Keyword | TFlags.Type },
   { s: "false", flags: TFlags.Keyword },
   { s: "finally", flags: TFlags.Keyword },
   { s: "for", flags: TFlags.Keyword },
   { s: "from", flags: TFlags.Keyword },
-  { s: "function", flags: TFlags.Keyword },
-  { s: "get", flags: TFlags.Keyword },
+  { s: "func", flags: TFlags.Keyword },
   { s: "if", flags: TFlags.Keyword },
-  { s: "implements", flags: TFlags.Keyword },
   { s: "import", flags: TFlags.Keyword },
   { s: "in", flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "infer", flags: TFlags.Keyword },
+  { s: "i8", flags: TFlags.Keyword | TFlags.Type },
+  { s: "i16", flags: TFlags.Keyword | TFlags.Type },
+  { s: "i32", flags: TFlags.Keyword | TFlags.Type },
+  { s: "i64", flags: TFlags.Keyword | TFlags.Type },
+  { s: "i128", flags: TFlags.Keyword | TFlags.Type },
   { s: "instanceof", flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp },
   { s: "interface", flags: TFlags.Keyword },
-  { s: "intrinsic", flags: TFlags.Keyword },
   { s: "is", flags: TFlags.Keyword },
   { s: "keyof", flags: TFlags.Keyword },
   { s: "let", flags: TFlags.Keyword },
-  { s: "module", flags: TFlags.Keyword },
-  { s: "namespace", flags: TFlags.Keyword },
-  { s: "never", flags: TFlags.Keyword },
   { s: "new", flags: TFlags.Keyword },
   { s: "null", flags: TFlags.Keyword },
-  { s: "number", flags: TFlags.Keyword },
-  { s: "object", flags: TFlags.Keyword },
   { s: "package", flags: TFlags.Keyword },
   { s: "private", flags: TFlags.Keyword },
   { s: "protected", flags: TFlags.Keyword },
   { s: "public", flags: TFlags.Keyword },
   { s: "override", flags: TFlags.Keyword },
-  { s: "out", flags: TFlags.Keyword },
-  { s: "readonly", flags: TFlags.Keyword },
-  { s: "require", flags: TFlags.Keyword },
-  { s: "global", flags: TFlags.Keyword },
   { s: "return", flags: TFlags.Keyword },
   { s: "satisfies", flags: TFlags.Keyword },
-  { s: "set", flags: TFlags.Keyword },
   { s: "static", flags: TFlags.Keyword },
-  { s: "string", flags: TFlags.Keyword },
+  { s: "string", flags: TFlags.Keyword | TFlags.Type },
   { s: "super", flags: TFlags.Keyword },
   { s: "switch", flags: TFlags.Keyword },
   { s: "symbol", flags: TFlags.Keyword },
@@ -255,13 +227,16 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "throw", flags: TFlags.Keyword },
   { s: "true", flags: TFlags.Keyword },
   { s: "try", flags: TFlags.Keyword },
-  { s: "type", flags: TFlags.Keyword },
+  { s: "type", flags: TFlags.Keyword | TFlags.Type },
   { s: "typeof", flags: TFlags.Keyword | TFlags.PrefixOp },
+  { s: "u8", flags: TFlags.Keyword | TFlags.Type },
+  { s: "u16", flags: TFlags.Keyword | TFlags.Type },
+  { s: "u32", flags: TFlags.Keyword | TFlags.Type },
+  { s: "u64", flags: TFlags.Keyword | TFlags.Type },
+  { s: "u128", flags: TFlags.Keyword | TFlags.Type },
   { s: "undefined", flags: TFlags.Keyword },
-  { s: "unique", flags: TFlags.Keyword },
-  { s: "unknown", flags: TFlags.Keyword },
   { s: "var", flags: TFlags.Keyword },
-  { s: "void", flags: TFlags.Keyword | TFlags.PrefixOp },
+  { s: "void", flags: TFlags.Keyword | TFlags.PrefixOp | TFlags.Type },
   { s: "while", flags: TFlags.Keyword },
   { s: "with", flags: TFlags.Keyword },
   { s: "yield", flags: TFlags.Keyword },
@@ -355,6 +330,7 @@ export const LOGIC_OPS = buildTokenGroup(TFlags.LogicOp);
 export const PREFIX_OPS = buildTokenGroup(TFlags.PrefixOp);
 export const POSTFIX_OPS = buildTokenGroup(TFlags.PostfixOp);
 export const KEYWORDS = buildTokenGroup(TFlags.Keyword);
+export const PRIMITIVE_TYPES = buildTokenGroup(TFlags.Type);
 
 type TokenValue = number | string | undefined | boolean;
 
@@ -362,20 +338,38 @@ export function isLogicOperator(id: Tok): boolean {
   return ((TOKEN_LIST[id].flags || 0) & TFlags.LogicOp) === TFlags.LogicOp;
 }
 
+export function isPrimitiveType(id: Tok): boolean {
+  return ((TOKEN_LIST[id].flags || 0) & TFlags.Type) === TFlags.Type;
+}
+
+export function isKeyword(ident: string): Tok | undefined {
+  const c1 = ident[0].toUpperCase();
+  if (c1 == ident[0]) return undefined;
+
+  ident = c1 + ident.slice(1);
+  var value: Tok = (<any>Tok)[ident];
+
+  if (value) {
+    if (value >= Tok.KwStart || value <= Tok.KwEnd) return value;
+  }
+  return undefined;
+}
+
 export class Token {
   constructor(
     public readonly id: Tok,
     public readonly range?: Range,
     public readonly value?: TokenValue
-  ) { }
+  ) {}
 
   info(): { [key: string]: any } {
     return TOKEN_LIST[this.id];
   }
 
   toString(): string {
-    return `${Tok[this.id]} -> ${this.value !== undefined ? this.value : this.info().s
-      }`;
+    return `${Tok[this.id]} -> ${
+      this.value !== undefined ? this.value : this.info().s
+    }`;
   }
 }
 

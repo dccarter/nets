@@ -6,7 +6,14 @@ import { Source } from "./src/source";
 import { Timers } from "./src/timer";
 
 const L = new Logger();
-const src = new Source("<stdin>", `user = {a: 20, b: 30}`);
+const src = new Source(
+  "<stdin>",
+  `
+func hello(n: i32) = {
+    const b = n * 100
+}
+`
+);
 const lexer = new Lexer(L, src);
 
 const parser = new Parser(L, lexer);
@@ -17,6 +24,8 @@ const ast = parser.parse();
 
 Timers.stop("Parse");
 Timers.print();
+L.print();
+if (L.errorCount || !ast) process.exit(1);
 
 const printer = new AstPrinter();
-printer.visit(ast);
+printer.visit(ast!);

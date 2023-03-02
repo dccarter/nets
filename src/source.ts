@@ -36,23 +36,35 @@ export class Range {
     );
   }
 
-  enclosingLine(): Range {
+  private getLine(s: Location) {
     const content = this.source.content;
-    var start = this.start;
-    var end = this.start;
+    var end = { pos: s.pos, coord: { ...s.coord } };
+    var start = { pos: s.pos, coord: { ...s.coord } };
 
     while (start.pos > 0 && content[start.pos - 1] != Ascii.NL) {
       start.pos = start.pos - 1;
     }
-    this.start.coord.column = 1;
+    start.coord.column = 1;
 
     var length = content.length;
     while (end.pos < length && content[end.pos] != Ascii.NL) {
       end.pos = end.pos + 1;
     }
-    this.end.coord.column = end.pos - start.pos;
 
+    end.coord.column = end.pos - start.pos || 1;
     return new Range(this.source, start, end);
+  }
+
+  firstLine(): Range {
+    return this.getLine(this.start);
+  }
+
+  lastLine(): Range {
+    return this.getLine(this.end);
+  }
+
+  isMultiline(): boolean {
+    return this.start.coord.line != this.end.coord.line;
   }
 
   merge(range: Range): Range {
@@ -73,13 +85,10 @@ export class Range {
   }
 
   static extend(lhs?: Range, rhs?: Range) {
-    if (!lhs) return rhs
-    if (!rhs) return lhs
+    if (!lhs) return rhs;
+    if (!rhs) return lhs;
 
-    assert(
-      lhs.source == rhs.source,
-      "Can only merge ranges from same source"
-    );
+    assert(lhs.source == rhs.source, "Can only merge ranges from same source");
     assert(
       lhs.start.pos <= rhs.start.pos,
       `range merge this.start (=${lhs.start.pos}) must be <= range.start (=${rhs.start.pos})`
@@ -93,8 +102,9 @@ export class Range {
   }
 
   str(): string {
+    const offset = this.start.pos === this.end.pos ? 1 : 0;
     return this.source.content
-      .subarray(this.start.pos, this.end.pos)
+      .subarray(this.start.pos, this.end.pos + offset)
       .toString();
   }
 }

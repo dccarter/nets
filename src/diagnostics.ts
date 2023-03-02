@@ -1,9 +1,14 @@
 import {
   fmcCyan,
+  fmcMagenta,
+  fmcNormal,
   fmcRed,
+  fmcWhite,
   fmcYellow,
   fmsBold,
+  fmsDim,
   fmt,
+  fmtComment,
   fmtLoc,
   fmtReset,
   FormatStyle,
@@ -90,7 +95,7 @@ function defaultPrintDiagnostic(diag: Diagnostic) {
   const write = (msg: string) => process.stdout.write(msg);
 
   const style = header[diag.level];
-  write(`${fmt(style[1])}${style[0]}${fmt(fmtReset)}: `);
+  write(`${fmt(style[1])}${style[0]}${fmtReset}: `);
   for (const str of diag.message) {
     write(str);
   }
@@ -98,9 +103,46 @@ function defaultPrintDiagnostic(diag: Diagnostic) {
 
   if (diag.range) {
     const fname = diag.range.source.fname;
-    const coord = diag.range.start.coord;
-    write(
-      `  ${fmt(fmtLoc)}${fname}${coord.line}:${coord.column}\n${fmt(fmtReset)}`
-    );
+    const start = diag.range.start.coord;
+    const end = diag.range.end.coord;
+    var nspaces = end.line.toString().length;
+    const style = fmt([fmsDim, fmcNormal]);
+    write(`  ${fmtLoc}${fname}${start.line}:${start.column}\n${fmtReset}`);
+
+    if (diag.range.isMultiline()) {
+      nspaces = Math.max(nspaces, 3);
+      const elipsis = " ".repeat(nspaces - 3);
+      const firstLine = diag.range.firstLine().str();
+      const lastLine = diag.range.lastLine().str();
+      write(`${style}${" ".repeat(nspaces)}|${fmtReset}\n`);
+      write(
+        `${style}${" ".repeat(nspaces - start.line.toString().length)}${
+          start.line
+        }|  ${firstLine}${fmtReset}\n`
+      );
+      write(`${style}${elipsis}...|  ...${fmtReset}\n`);
+
+      write(
+        `${style}${" ".repeat(nspaces - end.line.toString().length)}${
+          end.line
+        }|  ${lastLine}${fmtReset}\n`
+      );
+    } else {
+      write(`${style}${" ".repeat(nspaces)}|${fmtReset}\n`);
+      write(
+        `${style}${end.line}|  ${diag.range.lastLine().str()}${fmtReset}\n`
+      );
+      write(
+        `${style}${" ".repeat(nspaces)}|  ${fmtReset}${fmt([fmsDim, fmcRed])}`
+      );
+
+      write(" ".repeat(start.column - 1));
+      write("^");
+      write(
+        "~".repeat(end.column == start.column ? 0 : end.column - start.column)
+      );
+      write(`${fmtReset}\n`);
+    }
+    write(`${style}${" ".repeat(nspaces)}|${fmtReset}\n`);
   }
 }
