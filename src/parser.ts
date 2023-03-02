@@ -24,6 +24,7 @@ import {
   PrefixExpression,
   PrimitiveIdent,
   Program,
+  SignatureExpression,
   SpreadExpression,
   StringExpression,
   StringLit,
@@ -106,6 +107,223 @@ export class Parser {
     throw Error(msg);
   }
 
+  private sanitizeTuple(tup: TupleExpression) {
+    var named = false,
+      unnamed = false;
+    tup.exprs.each((node: AstNode): any => {
+      var rhs = node;
+      if (node.id === Ast.AssignmentExpr) {
+        if (unnamed) {
+          this.error(
+            "adding unnamed member in a named tuple not supported",
+            node.range
+          );
+        }
+
+        const assign = <AssignmentExpression>node;
+        if (assign.op !== Tok.Colon) {
+          this.error(
+            "named tuple member must be separated by a colon",
+            node.range
+          );
+        }
+
+        if (assign.lhs.id !== Ast.Identifier) {
+          this.error("expecting the name of a tuple member", assign.lhs.range);
+        }
+        named = true;
+        rhs = assign.rhs;
+      } else {
+        if (named) {
+          this.error(
+            "adding named member in a unnamed tuple not supported",
+            node.range
+          );
+        }
+        unnamed = true;
+      }
+      this.requireType(rhs);
+    });
+  }
+
+  private sanitizeStructLiteralType(node: StructLitExpression) {
+    node.exprs.each((node: AstNode): any => {
+      if (node.id !== Ast.AssignmentExpr) {
+        this.error(
+          "adding unnamed member in a struct literal is not supported",
+          node.range
+        );
+      }
+
+      const assign = <AssignmentExpression>node;
+      if (assign.op !== Tok.Colon) {
+        this.error(
+          "struct literal member name and type must be separated by a colon ':'",
+          node.range
+        );
+      }
+
+      if (assign.lhs.id !== Ast.Identifier) {
+        this.error(
+          "expecting the name of a struct literal member",
+          assign.lhs.range
+        );
+      }
+
+      this.requireType(assign.rhs);
+    });
+  }
+
+  private sanitizeBracketType(expr: BracketExpression) {
+    this.requireType(expr.target);
+    expr.indices.each((node: AstNode): any => {
+      switch (node.id) {
+        case Ast.BoolLit:
+        case Ast.CharLit:
+        case Ast.IntLit:
+        case Ast.FloatLit:
+        case Ast.StrLit:
+          break;
+        default:
+          this.requireType(node);
+      }
+    });
+  }
+
+  private sanitizeClosureType(cl: ClosureExpression) {
+    if (cl.signature) {
+      this.error(
+        "invalid token before closure return type, expecting '=>'",
+        cl.signature.range
+      );
+    }
+    this.requireType(cl.body);
+  }
+
+  private sanitizeSignature(sig: SignatureExpression) {
+    var params = sig.params;
+    if (params.id === Ast.GroupingExpr) {
+      const members = new AstNodeList();
+      members.add((<GroupingExpression>params).expr);
+      params = new TupleExpression(members, params.range);
+    }
+  }
+
+  private requireType(node: AstNode) {
+    switch (node.id) {
+      case Ast.Identifier:
+      case Ast.Primitive:
+        break;
+      case Ast.TupleExpr:
+        this.sanitizeTuple(<TupleExpression>node);
+        break;
+      case Ast.BracketExpr:
+        this.sanitizeBracketType(<BracketExpression>node);
+        break;
+      case Ast.StructLitExpr:
+        this.sanitizeStructLiteralType(<StructLitExpression>node);
+        break;
+      case Ast.ClosureExpr:
+        this.sanitizeClosureType(<ClosureExpression>node);
+        break;
+      case Ast.Signature:
+        this.sanitizeSignature(<SignatureExpression>node);
+        break;
+      default:
+        this.error(
+          `invalid type, expecting a type name or type expression ${
+            Ast[node.id]
+          }`,
+          node.range
+        );
+    }
+  }
+
+  private convertToTuple(node: AstNode): AstNode {
+    if (node.id === Ast.GroupingExpr) {
+      const members = new AstNodeList();
+      members.add((<GroupingExpression>node).expr);
+      return new TupleExpression(members, node.range);
+    } else if (node.id === Ast.Identifier) {
+      const members = new AstNodeList();
+      members.add(node);
+      return new TupleExpression(members, node.range);
+    } else if (node.id !== Ast.TupleExpr) {
+      this.error("unexpected tokens, expecting tuple", node.range);
+    }
+    return node;
+  }
+
+  private requireParam(node: AstNode) {
+    if (node.id !== Ast.AssignmentExpr) {
+      this.error(
+        `unexpected tokens ${Ast[node.id]}, expecting a function parameter`,
+        node.range
+      );
+    }
+
+    var assign = <AssignmentExpression>node;
+    var lhs = assign.lhs,
+      rhs = assign.rhs;
+
+    if (lhs.id === Ast.AssignmentExpr) {
+      assign = <AssignmentExpression>lhs;
+      lhs = assign.lhs;
+
+      rhs = new SignatureExpression(
+        this.convertToTuple(assign.rhs),
+        rhs,
+        Range.extend(assign.rhs.range, rhs.range)
+      );
+    }
+
+    if (lhs.id === Ast.SpreadExpr) lhs = (<SpreadExpression>lhs).expr;
+
+    if (lhs.id !== Ast.Identifier) {
+      this.error("unexpected tokens, expecting a parameter name", lhs.range);
+    }
+
+    if (rhs.id === Ast.GroupingExpr) {
+      rhs = this.convertToTuple(rhs);
+    }
+
+    this.requireType(rhs);
+  }
+
+  private requireClosureSignature(sig: AstNode): [AstNode, AstNode?] {
+    var params = sig,
+      ret: AstNode | undefined = undefined;
+    if (sig.id === Ast.AssignmentExpr) {
+      const assign = <AssignmentExpression>sig;
+      if (assign.op !== Tok.Colon) {
+        this.error("unexpected token after function parameters", assign.range);
+      }
+
+      params = assign.lhs;
+      ret = assign.rhs;
+      this.requireType(ret);
+    }
+
+    if (params.id === Ast.GroupingExpr) {
+      const members = new AstNodeList();
+      members.add((<GroupingExpression>params).expr);
+      params = new TupleExpression(members, params.range);
+    }
+
+    if (params.id !== Ast.TupleExpr) {
+      this.error(
+        "unexpected tokens, expecting function parameters",
+        params.range
+      );
+    }
+
+    (<TupleExpression>params).exprs.each((node: AstNode): any => {
+      this.requireParam(node);
+    });
+
+    return [params, ret];
+  }
+
   parse(): AstNode | undefined {
     try {
       const program = new Program();
@@ -113,7 +331,7 @@ export class Parser {
         program.add(this.declaration());
       }
       return program;
-    } catch {
+    } catch (e) {
       return undefined;
     }
     // return this.expression();
@@ -128,12 +346,18 @@ export class Parser {
       case Tok.Func:
         return this.func();
       case Tok.Class:
-        return this.classDecl();
+        return this.klass();
+      case Tok.Enum:
+        return this.enumeration();
       case Tok.LBrace:
         return this.block();
     }
     return this.statement();
   }
+
+  private klass(): AstNode {}
+
+  private enumeration(): AstNode {}
 
   private block(): AstNode {
     if (!this.match(Tok.LBrace)) {
@@ -163,65 +387,25 @@ export class Parser {
     const isAsync = this.match(Tok.Async);
     const tok = this.consume(Tok.Func);
     const name = this.consume(Tok.Ident);
-    const expr = this.binding();
+
+    const expr = this.tupleOrGroup((node: AstNode) => {
+      this.requireParam(node);
+    });
+
     var args: AstNode, ret: AstNode | undefined;
-    if (expr.id === Ast.AssignmentExpr) {
-      const assign = <AssignmentExpression>expr;
-      if (assign.lhs.id === Ast.GroupingExpr) {
-        const exprs = new AstNodeList();
-        exprs.add((<GroupingExpression>assign.lhs).expr);
-        args = new TupleExpression(exprs, assign.lhs.range);
-      } else if (assign.lhs.id === Ast.TupleExpr) {
-        args = expr;
-      } else {
-        this.error("invalid function signuature", assign.lhs.range);
-      }
-
-      if (assign.op === Tok.Assign) {
-        return new FunctionDeclaration(
-          name.value as string,
-          args!,
-          assign.rhs,
-          undefined,
-          isAsync !== undefined,
-          Range.extend(isAsync ? isAsync.range : tok.range, expr.range)
-        );
-      }
-
-      if (assign.op !== Tok.Colon) {
-        this.error("expecting a valid function declaration", assign.range);
-      }
-
-      if (assign.rhs.id === Ast.AssignmentExpr) {
-        const rhs = <AssignmentExpression>assign.rhs;
-        if (rhs.op !== Tok.Assign) {
-          this.error(
-            `unexpected '${
-              Tok[rhs.op]
-            }' token after function return type, expecting '=' or '{'`,
-            rhs.range
-          );
-        }
-
-        return new FunctionDeclaration(
-          name.value as string,
-          assign.lhs,
-          rhs.rhs,
-          rhs.lhs,
-          isAsync !== undefined,
-          Range.extend(isAsync ? isAsync.range : tok.range, expr.range)
-        );
-      }
-      args = assign.lhs;
-      ret = assign.rhs;
-    } else if (expr.id === Ast.GroupingExpr) {
+    if (expr.id === Ast.GroupingExpr) {
       const exprs = new AstNodeList();
       exprs.add((<GroupingExpression>expr).expr);
       args = new TupleExpression(exprs, expr.range);
     } else if (expr.id === Ast.TupleExpr) {
       args = expr;
     } else {
-      this.error(`${Ast[expr.id]} invalid function signuature`, expr.range);
+      this.error(`${Ast[expr.id]} invalid function signature`, expr.range);
+    }
+
+    if (this.match(Tok.Colon)) {
+      ret = this.primary();
+      this.requireType(ret);
     }
 
     if (this.match(Tok.Assign) && this.check(Tok.LBrace)) {
@@ -231,12 +415,14 @@ export class Parser {
     }
 
     const body = this.block();
-
     return new FunctionDeclaration(
       name.value as string,
-      args!,
+      new SignatureExpression(
+        args!,
+        ret,
+        ret ? Range.extend(args!.range, ret.range) : args!.range
+      ),
       body,
-      ret,
       isAsync !== undefined,
       Range.extend(isAsync ? isAsync.range : tok.range, body.range)
     );
@@ -244,56 +430,44 @@ export class Parser {
 
   private variable(): AstNode {
     const modifier = this.advance();
-    const variable = this.binding();
+    var variable = this.compound()!;
+    var varType: AstNode | undefined, varInit: AstNode | undefined;
 
-    if (variable.id === Ast.AssignmentExpr) {
-      const assign = <BinaryExpression>variable;
-      if (assign.op === Tok.Colon) {
-        // const a:b = x
-        if (assign.rhs.id === Ast.AssignmentExpr) {
-          const eq = <AssignmentExpression>assign.rhs;
-          if (eq.op !== Tok.Assign) {
-            this.error(
-              "unexpected binary expression, expecting an assignment expression",
-              eq.range
-            );
-          }
-          return new VariableDeclaration(
-            modifier.id,
-            assign.lhs,
-            eq.lhs,
-            eq.rhs,
-            Range.extend(modifier.range, assign.range)
-          );
-        } else if (modifier.id === Tok.Const) {
+    if (variable.id === Ast.GroupingExpr) {
+      variable = (<GroupingExpression>variable).expr;
+    }
+
+    if (variable.id === Ast.TupleExpr) {
+      const tup = <TupleExpression>variable;
+      if (tup.exprs.count === 0) {
+        this.error("missing variable name in variable declaration", tup.range);
+      }
+
+      tup.exprs.each((node: AstNode): any => {
+        if (node.id !== Ast.Identifier) {
           this.error(
-            "`const` variable declaration must be intialized",
-            Range.extend(modifier.range, variable.range)
+            "only identifiers supported in variable names",
+            node.range
           );
         }
-        return new VariableDeclaration(
-          modifier.id,
-          assign.lhs,
-          assign.rhs,
-          undefined,
-          Range.extend(modifier.range, assign.range)
-        );
-      } else if (assign.op === Tok.Assign) {
-        return new VariableDeclaration(
-          modifier.id,
-          assign.lhs,
-          undefined,
-          assign.rhs,
-          Range.extend(modifier.range, assign.range)
-        );
-      }
+      });
+    } else if (variable.id !== Ast.Identifier) {
       this.error(
-        "unexpected expression, expecting variable declaration",
+        "only identifiers supported in variable names",
         variable.range
       );
+    }
+
+    if (this.match(Tok.Colon)) {
+      varType = this.bracket()!;
+      this.requireType(varType);
+    }
+
+    if (this.match(Tok.Assign)) {
+      varInit = this.expression();
     } else if (modifier.id === Tok.Const) {
       this.error(
-        "`const` variable declaration must be intialized",
+        "`const` variable declaration must be initialized",
         Range.extend(modifier.range, variable.range)
       );
     }
@@ -301,8 +475,8 @@ export class Parser {
     return new VariableDeclaration(
       modifier.id,
       variable,
-      undefined,
-      undefined,
+      varType,
+      varInit,
       Range.extend(modifier.range, variable.range)
     );
   }
@@ -346,13 +520,21 @@ export class Parser {
     const isAsync = this.match(Tok.Async);
     const expr = this.binding();
 
-    if (this.match(Tok.Arrow)) {
+    if (this.match(Tok.FatArrow)) {
+      const [params, ret] = this.requireClosureSignature(expr);
       const body = this.block();
+      const range = isAsync
+        ? Range.extend(isAsync.range, params.range)
+        : params.range;
       return new ClosureExpression(
-        expr,
+        new SignatureExpression(
+          params,
+          ret,
+          ret ? Range.extend(params.range, ret.range) : params.range
+        ),
         body,
-        isAsync != undefined,
-        Range.extend(isAsync ? isAsync.range : expr.range, body.range)
+        isAsync !== undefined,
+        Range.extend(range, body.range)
       );
     }
 
@@ -371,6 +553,17 @@ export class Parser {
         Range.extend(expr.range, rhs.range)
       );
     }
+
+    if (this.match(Tok.Arrow)) {
+      const ret = this.bracket();
+      expr = new AssignmentExpression(
+        expr,
+        Tok.Arrow,
+        ret,
+        Range.extend(expr.range, ret.range)
+      );
+    }
+
     return expr;
   }
 
@@ -677,12 +870,16 @@ export class Parser {
 
     while (this.match(Tok.LBracket)) {
       const range = expr?.range;
-      const index = this.expression();
+      var indices = new AstNodeList();
+      while (!this.check(Tok.RBracket) && !this.Eof()) {
+        indices.add(this.expression());
+        this.match(Tok.Comma);
+      }
       this.consume(Tok.RBracket, "expecting a closing bracket ']'");
       expr = new BracketExpression(
         expr,
-        index,
-        Range.extend(range, index.range)
+        indices,
+        Range.extend(range, this.previous().range)
       );
     }
 
@@ -710,7 +907,7 @@ export class Parser {
     return expr;
   }
 
-  private primary(): AstNode | undefined {
+  private primary(): AstNode {
     const lit = this.literal();
     if (lit) {
       this.advance();
@@ -718,17 +915,13 @@ export class Parser {
     }
 
     if (this.check(Tok.LStrExpr)) {
-      var tok = this.advance();
-      var str = new StringExpression(tok?.range);
-      while (!this.match(Tok.RStrExpr) && !this.Eof()) {
-        str.add(this.expression());
-        tok = this.peek();
-      }
-
-      str.range = Range.extend(tok.range, this.previous().range);
-      return str;
+      return this.stringExpression();
     }
 
+    return this.compound()!;
+  }
+
+  private compound(): AstNode | undefined {
     if (this.check(Tok.Ident)) {
       var tok = this.advance();
       return new Identifier(tok?.value as string, tok?.range);
@@ -739,64 +932,90 @@ export class Parser {
       return new PrimitiveIdent(tok?.id, tok?.range);
     }
 
-    if (this.match(Tok.LParen)) {
-      const range = this.previous().range;
-      const exprs = new AstNodeList();
-      while (!this.check(Tok.RParen) && !this.Eof()) {
-        exprs.add(this.expression());
-        this.match(Tok.Comma);
-      }
-      this.consume(
-        Tok.RParen,
-        "expecting a closing ')' to close a tuple/group expression."
-      );
-
-      return exprs.count === 1
-        ? new GroupingExpression(
-            exprs.first!,
-            Range.extend(range, this.previous().range)
-          )
-        : new TupleExpression(
-            exprs,
-            Range.extend(range, this.previous().range)
-          );
+    if (this.check(Tok.LParen)) {
+      return this.tupleOrGroup();
     }
 
-    if (this.match(Tok.LBrace)) {
-      const range = this.previous().range;
-      var init = new StructLitExpression(new AstNodeList(), range);
-
-      while (!this.check(Tok.RBrace) && !this.Eof()) {
-        init.add(this.expression());
-        this.match(Tok.Comma);
-      }
-
-      this.consume(
-        Tok.RBrace,
-        "expecting a closing '}' to close a struct literal expression."
-      );
-      init.range = Range.extend(range, this.previous().range);
-      return init;
+    if (this.check(Tok.LBrace)) {
+      return this.structLiteral();
     }
 
     if (this.match(Tok.LBracket)) {
-      const range = this.previous().range;
-      var init = new ArrayLitExpression(new AstNodeList(), range);
-
-      while (!this.check(Tok.RBracket) && !this.Eof()) {
-        init.add(this.expression());
-        this.match(Tok.Comma);
-      }
-
-      this.consume(
-        Tok.RBracket,
-        "expecting a closing ']' to close an array literal expression."
-      );
-      init.range = Range.extend(range, this.previous().range);
-      return init;
+      return this.arrayLiteral();
     }
 
     this.error("unexpected token, expecting an expression");
+  }
+
+  private tupleOrGroup(check?: (node: AstNode) => void): AstNode {
+    this.consume(Tok.LParen);
+    const range = this.previous().range;
+    const exprs = new AstNodeList();
+    while (!this.check(Tok.RParen) && !this.Eof()) {
+      const expr = this.expression();
+      if (check) check(expr);
+      exprs.add(expr);
+      this.match(Tok.Comma);
+    }
+    this.consume(
+      Tok.RParen,
+      "expecting a closing ')' to close a tuple/group expression."
+    );
+
+    return exprs.count === 1
+      ? new GroupingExpression(
+          exprs.first!,
+          Range.extend(range, this.previous().range)
+        )
+      : new TupleExpression(exprs, Range.extend(range, this.previous().range));
+  }
+
+  private structLiteral(): AstNode {
+    this.consume(Tok.LBrace);
+    const range = this.previous().range;
+    var init = new StructLitExpression(new AstNodeList(), range);
+
+    while (!this.check(Tok.RBrace) && !this.Eof()) {
+      init.add(this.expression());
+      this.match(Tok.Comma);
+    }
+
+    this.consume(
+      Tok.RBrace,
+      "expecting a closing '}' to close a struct literal expression."
+    );
+    init.range = Range.extend(range, this.previous().range);
+    return init;
+  }
+
+  private arrayLiteral(): AstNode {
+    this.consume(Tok.LBracket);
+    const range = this.previous().range;
+    var init = new ArrayLitExpression(new AstNodeList(), range);
+
+    while (!this.check(Tok.RBracket) && !this.Eof()) {
+      init.add(this.expression());
+      this.match(Tok.Comma);
+    }
+
+    this.consume(
+      Tok.RBracket,
+      "expecting a closing ']' to close an array literal expression."
+    );
+    init.range = Range.extend(range, this.previous().range);
+    return init;
+  }
+
+  private stringExpression(): AstNode {
+    var tok = this.consume(Tok.LStrExpr);
+    var str = new StringExpression(tok?.range);
+    while (!this.match(Tok.RStrExpr) && !this.Eof()) {
+      str.add(this.expression());
+      tok = this.peek();
+    }
+
+    str.range = Range.extend(tok.range, this.previous().range);
+    return str;
   }
 
   private literal(): AstNode | undefined {

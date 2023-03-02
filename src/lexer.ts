@@ -13,7 +13,7 @@ import {
   FloatToken,
   IdentToken,
   IntegerToken,
-  isKeyword,
+  isKeywordString,
   StringToken,
   InvalidToken,
   Tok,
@@ -113,7 +113,7 @@ export class Lexer {
 
     const ident = this.range(p);
     const name = ident.str();
-    const kw = isKeyword(name);
+    const kw = isKeywordString(name);
     if (kw) return new Token(kw, ident);
     else return new IdentToken(ident.str(), ident);
   }
@@ -333,6 +333,8 @@ export class Lexer {
             return new Token(Tok.MinusMinus, this.range(p));
           else if (this.acceptChar("="))
             return new Token(Tok.MinusEq, this.range(p));
+          else if (this.acceptChar(">"))
+            return new Token(Tok.Arrow, this.range(p));
           return new Token(Tok.Minus, this.range(p));
 
         case Ascii["*"]:
@@ -436,7 +438,8 @@ export class Lexer {
             return new Token(Tok.Equal, this.range(p));
           }
 
-          if (this.acceptChar(">")) return new Token(Tok.Arrow, this.range(p));
+          if (this.acceptChar(">"))
+            return new Token(Tok.FatArrow, this.range(p));
 
           return new Token(Tok.Assign, this.range(p));
 

@@ -30,6 +30,7 @@ export enum Ast {
   TupleExpr,
   StructLitExpr,
   ArrayLitExpr,
+  Signature,
   ClosureExpr,
   Block,
   VariableDecl,
@@ -74,6 +75,14 @@ export class AstNodeList {
       node = node.next;
     }
     return copy;
+  }
+
+  each(func: (node: AstNode) => true | undefined) {
+    var node = this.first;
+    while (node) {
+      if (func(node)) break;
+      node = node.next;
+    }
   }
 }
 
@@ -334,14 +343,18 @@ export class NewExpression extends AstNode {
 }
 
 export class BracketExpression extends AstNode {
-  constructor(public target: AstNode, public index: AstNode, range?: Range) {
+  constructor(
+    public target: AstNode,
+    public indices: AstNodeList,
+    range?: Range
+  ) {
     super(Ast.BracketExpr, range);
   }
 
   clone(): AstNode {
     return new BracketExpression(
       this.target.clone(),
-      this.index.clone(),
+      this.indices.clone(),
       this.range
     );
   }
@@ -422,11 +435,25 @@ export class ArrayLitExpression extends AstNode {
   }
 }
 
+export class SignatureExpression extends AstNode {
+  constructor(public params: AstNode, public ret?: AstNode, range?: Range) {
+    super(Ast.Signature, range);
+  }
+
+  clone(): AstNode {
+    return new SignatureExpression(
+      this.params.clone(),
+      this.ret?.clone(),
+      this.range
+    );
+  }
+}
+
 export class ClosureExpression extends AstNode {
   constructor(
     public signature: AstNode,
     public body: AstNode,
-    public isAsync: boolean,
+    public isAsync?: boolean,
     range?: Range
   ) {
     super(Ast.ClosureExpr, range);
@@ -445,7 +472,7 @@ export class ClosureExpression extends AstNode {
 export class VariableDeclaration extends AstNode {
   constructor(
     public modifier: Tok,
-    public varible: AstNode,
+    public variable: AstNode,
     public type?: AstNode,
     public init?: AstNode,
     range?: Range
@@ -456,9 +483,9 @@ export class VariableDeclaration extends AstNode {
   clone(): AstNode {
     return new VariableDeclaration(
       this.modifier,
-      this.varible.clone(),
-      this.type ? this.type.clone() : undefined,
-      this.init ? this.init.clone() : undefined,
+      this.variable.clone(),
+      this.type?.clone(),
+      this.init?.clone(),
       this.range
     );
   }
@@ -467,9 +494,8 @@ export class VariableDeclaration extends AstNode {
 export class FunctionDeclaration extends AstNode {
   constructor(
     public name: string,
-    public args: AstNode,
+    public signature: AstNode,
     public body: AstNode,
-    public ret?: AstNode,
     public isAsync?: boolean,
     range?: Range
   ) {
@@ -479,9 +505,8 @@ export class FunctionDeclaration extends AstNode {
   clone(): AstNode {
     return new FunctionDeclaration(
       this.name,
-      this.args.clone(),
+      this.signature.clone(),
       this.body.clone(),
-      this.ret ? this.ret.clone() : undefined,
       this.isAsync,
       this.range
     );
@@ -516,101 +541,145 @@ export class CodeBlock extends AstNode {
 }
 
 export abstract class AstVisitor<T = void> {
-  dispatch: { [TNode in Ast as AstNode["id"]]: (node: AstNode) => T | void } = {
-    [Ast.Null]: (curr: AstNode) => this.visitNull(curr),
-    [Ast.Undefined]: (curr: AstNode) => this.visitUndefined(curr),
-    [Ast.Program]: (curr: AstNode) => this.visitProgram(<Program>curr),
-    [Ast.Primitive]: (curr: AstNode) =>
-      this.visitPrimitive(<PrimitiveIdent>curr),
-    [Ast.BoolLit]: (curr: AstNode) => this.visitBoolLiteral(<BoolLit>curr),
-    [Ast.CharLit]: (curr: AstNode) =>
-      this.visitCharacterLiteral(<CharacterLit>curr),
-    [Ast.IntLit]: (curr: AstNode) => this.visitIntegerLiteral(<IntegerLit>curr),
-    [Ast.FloatLit]: (curr: AstNode) => this.visitFloatLiteral(<FloatLit>curr),
-    [Ast.StrLit]: (curr: AstNode) => this.visitStringLiteral(<StringLit>curr),
-    [Ast.Identifier]: (curr: AstNode) => this.visitIdentifier(<Identifier>curr),
-    [Ast.StrExpr]: (curr: AstNode) =>
-      this.visitStringExpression(<StringExpression>curr),
-    [Ast.GroupingExpr]: (curr: AstNode) =>
-      this.visitGroupingExpression(<GroupingExpression>curr),
-    [Ast.PrefixExpr]: (curr: AstNode) =>
-      this.visitPrefixExpression(<PrefixExpression>curr),
-    [Ast.PostfixExpr]: (curr: AstNode) =>
-      this.visitPostfixExpression(<PostfixExpression>curr),
-    [Ast.UnaryExpr]: (curr: AstNode) =>
-      this.visitUnaryExpression(<UnaryExpression>curr),
-    [Ast.BinaryExpr]: (curr: AstNode) =>
-      this.visitBinaryExpression(<BinaryExpression>curr),
-    [Ast.TernaryExpr]: (curr: AstNode) =>
-      this.visitTernaryExpression(<TernaryExpression>curr),
-    [Ast.AssignmentExpr]: (curr: AstNode) =>
-      this.visitAssignmentExpression(<AssignmentExpression>curr),
-    [Ast.CallExpr]: (curr: AstNode) =>
-      this.visitCallExpression(<CallExpression>curr),
-    [Ast.SpreadExpr]: (curr: AstNode) =>
-      this.visitSpreadExpression(<SpreadExpression>curr),
-    [Ast.YieldExpr]: (curr: AstNode) =>
-      this.visitYieldExpression(<YieldExpression>curr),
-    [Ast.NewExpr]: (curr: AstNode) =>
-      this.visitNewExpression(<NewExpression>curr),
-    [Ast.BracketExpr]: (curr: AstNode) =>
-      this.visitBracketExpression(<BracketExpression>curr),
-    [Ast.DotExpr]: (curr: AstNode) =>
-      this.visitDotExpression(<DotExpression>curr),
-    [Ast.MemberAccessExpr]: (curr: AstNode) =>
-      this.visitMemberAccessExpression(<MemberAccessExpression>curr),
-    [Ast.TupleExpr]: (curr: AstNode) =>
-      this.visitTupleLitExpression(<TupleExpression>curr),
-    [Ast.StructLitExpr]: (curr: AstNode) =>
-      this.visitStructLitExpression(<StructLitExpression>curr),
-    [Ast.ArrayLitExpr]: (curr: AstNode) =>
-      this.visitArrayLitExpression(<ArrayLitExpression>curr),
-    [Ast.ClosureExpr]: (curr: AstNode) =>
-      this.visitClosureExpression(<ClosureExpression>curr),
-    [Ast.VariableDecl]: (curr: AstNode) =>
-      this.visitVariableDeclaration(<VariableDeclaration>curr),
-    [Ast.FuncDecl]: (curr: AstNode) =>
-      this.visitFunctionDeclaration(<FunctionDeclaration>curr),
-    [Ast.ExpressionStmt]: (curr: AstNode) =>
-      this.visitExpressionStatement(<ExpressionStatement>curr),
-    [Ast.Block]: (curr: AstNode) => this.visitCodeBlock(<CodeBlock>curr),
+  dispatch: {
+    [TNode in Ast as AstNode["id"]]: (
+      node: AstNode,
+      parent?: AstNode
+    ) => T | void;
+  } = {
+    [Ast.Null]: (curr: AstNode, parent?: AstNode) =>
+      this.visitNull(curr, parent),
+    [Ast.Undefined]: (curr: AstNode, parent?: AstNode) =>
+      this.visitUndefined(curr, parent),
+    [Ast.Program]: (curr: AstNode, parent?: AstNode) =>
+      this.visitProgram(<Program>curr, parent),
+    [Ast.Primitive]: (curr: AstNode, parent?: AstNode) =>
+      this.visitPrimitive(<PrimitiveIdent>curr, parent),
+    [Ast.BoolLit]: (curr: AstNode, parent?: AstNode) =>
+      this.visitBoolLiteral(<BoolLit>curr, parent),
+    [Ast.CharLit]: (curr: AstNode, parent?: AstNode) =>
+      this.visitCharacterLiteral(<CharacterLit>curr, parent),
+    [Ast.IntLit]: (curr: AstNode, parent?: AstNode) =>
+      this.visitIntegerLiteral(<IntegerLit>curr, parent),
+    [Ast.FloatLit]: (curr: AstNode, parent?: AstNode) =>
+      this.visitFloatLiteral(<FloatLit>curr, parent),
+    [Ast.StrLit]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStringLiteral(<StringLit>curr, parent),
+    [Ast.Identifier]: (curr: AstNode, parent?: AstNode) =>
+      this.visitIdentifier(<Identifier>curr, parent),
+    [Ast.StrExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStringExpression(<StringExpression>curr, parent),
+    [Ast.GroupingExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitGroupingExpression(<GroupingExpression>curr, parent),
+    [Ast.PrefixExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitPrefixExpression(<PrefixExpression>curr, parent),
+    [Ast.PostfixExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitPostfixExpression(<PostfixExpression>curr, parent),
+    [Ast.UnaryExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitUnaryExpression(<UnaryExpression>curr, parent),
+    [Ast.BinaryExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitBinaryExpression(<BinaryExpression>curr, parent),
+    [Ast.TernaryExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitTernaryExpression(<TernaryExpression>curr, parent),
+    [Ast.AssignmentExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitAssignmentExpression(<AssignmentExpression>curr, parent),
+    [Ast.CallExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitCallExpression(<CallExpression>curr, parent),
+    [Ast.SpreadExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitSpreadExpression(<SpreadExpression>curr, parent),
+    [Ast.YieldExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitYieldExpression(<YieldExpression>curr, parent),
+    [Ast.NewExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitNewExpression(<NewExpression>curr, parent),
+    [Ast.BracketExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitBracketExpression(<BracketExpression>curr, parent),
+    [Ast.DotExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitDotExpression(<DotExpression>curr, parent),
+    [Ast.MemberAccessExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitMemberAccessExpression(<MemberAccessExpression>curr, parent),
+    [Ast.TupleExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitTupleLitExpression(<TupleExpression>curr, parent),
+    [Ast.StructLitExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStructLitExpression(<StructLitExpression>curr, parent),
+    [Ast.ArrayLitExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitArrayLitExpression(<ArrayLitExpression>curr, parent),
+    [Ast.Signature]: (curr: AstNode, parent?: AstNode) =>
+      this.visitSignatureExpression(<SignatureExpression>curr, parent),
+    [Ast.ClosureExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitClosureExpression(<ClosureExpression>curr, parent),
+    [Ast.VariableDecl]: (curr: AstNode, parent?: AstNode) =>
+      this.visitVariableDeclaration(<VariableDeclaration>curr, parent),
+    [Ast.FuncDecl]: (curr: AstNode, parent?: AstNode) =>
+      this.visitFunctionDeclaration(<FunctionDeclaration>curr, parent),
+    [Ast.ExpressionStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitExpressionStatement(<ExpressionStatement>curr, parent),
+    [Ast.Block]: (curr: AstNode, parent?: AstNode) =>
+      this.visitCodeBlock(<CodeBlock>curr, parent),
   };
 
-  visit(node: AstNode): T | void {
-    return this.dispatch[node.id](node);
+  visit(node: AstNode, parent?: AstNode): T | void {
+    return this.dispatch[node.id](node, parent);
   }
 
-  visitProgram(node: Program): T | void {}
-  visitNull(node: AstNode): T | void {}
-  visitUndefined(node: AstNode): T | void {}
-  visitPrimitive(node: PrimitiveIdent): T | void {}
-  visitBoolLiteral(node: BoolLit): T | void {}
-  visitCharacterLiteral(node: CharacterLit): T | void {}
-  visitIntegerLiteral(node: IntegerLit): T | void {}
-  visitFloatLiteral(node: FloatLit): T | void {}
-  visitStringLiteral(node: StringLit): T | void {}
-  visitIdentifier(node: Identifier): T | void {}
-  visitStringExpression(node: StringExpression): T | void {}
-  visitGroupingExpression(node: GroupingExpression): T | void {}
-  visitPrefixExpression(node: PrefixExpression): T | void {}
-  visitPostfixExpression(node: PostfixExpression): T | void {}
-  visitUnaryExpression(node: UnaryExpression): T | void {}
-  visitBinaryExpression(node: BinaryExpression): T | void {}
-  visitTernaryExpression(node: TernaryExpression): T | void {}
-  visitAssignmentExpression(node: AssignmentExpression): T | void {}
-  visitCallExpression(node: CallExpression): T | void {}
-  visitSpreadExpression(node: SpreadExpression): T | void {}
-  visitYieldExpression(node: YieldExpression): T | void {}
-  visitNewExpression(node: NewExpression): T | void {}
-  visitBracketExpression(node: BracketExpression): T | void {}
-  visitDotExpression(node: DotExpression): T | void {}
-  visitMemberAccessExpression(node: MemberAccessExpression): T | void {}
-  visitTupleLitExpression(node: TupleExpression): T | void {}
-  visitStructLitExpression(node: StructLitExpression): T | void {}
-  visitArrayLitExpression(node: ArrayLitExpression): T | void {}
-  visitClosureExpression(node: ClosureExpression): T | void {}
-  visitVariableDeclaration(node: VariableDeclaration): T | void {}
-  visitFunctionDeclaration(node: FunctionDeclaration): T | void {}
-  visitExpressionStatement(node: ExpressionStatement): T | void {}
-  visitCodeBlock(node: CodeBlock): T | void {}
+  visitProgram(node: Program, parent?: AstNode): T | void {}
+  visitNull(node: AstNode, parent?: AstNode): T | void {}
+  visitUndefined(node: AstNode, parent?: AstNode): T | void {}
+  visitPrimitive(node: PrimitiveIdent, parent?: AstNode): T | void {}
+  visitBoolLiteral(node: BoolLit, parent?: AstNode): T | void {}
+  visitCharacterLiteral(node: CharacterLit, parent?: AstNode): T | void {}
+  visitIntegerLiteral(node: IntegerLit, parent?: AstNode): T | void {}
+  visitFloatLiteral(node: FloatLit, parent?: AstNode): T | void {}
+  visitStringLiteral(node: StringLit, parent?: AstNode): T | void {}
+  visitIdentifier(node: Identifier, parent?: AstNode): T | void {}
+  visitStringExpression(node: StringExpression, parent?: AstNode): T | void {}
+  visitGroupingExpression(
+    node: GroupingExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitPrefixExpression(node: PrefixExpression, parent?: AstNode): T | void {}
+  visitPostfixExpression(node: PostfixExpression, parent?: AstNode): T | void {}
+  visitUnaryExpression(node: UnaryExpression, parent?: AstNode): T | void {}
+  visitBinaryExpression(node: BinaryExpression, parent?: AstNode): T | void {}
+  visitTernaryExpression(node: TernaryExpression, parent?: AstNode): T | void {}
+  visitAssignmentExpression(
+    node: AssignmentExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitCallExpression(node: CallExpression, parent?: AstNode): T | void {}
+  visitSpreadExpression(node: SpreadExpression, parent?: AstNode): T | void {}
+  visitYieldExpression(node: YieldExpression, parent?: AstNode): T | void {}
+  visitNewExpression(node: NewExpression, parent?: AstNode): T | void {}
+  visitBracketExpression(node: BracketExpression, parent?: AstNode): T | void {}
+  visitDotExpression(node: DotExpression, parent?: AstNode): T | void {}
+  visitMemberAccessExpression(
+    node: MemberAccessExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitTupleLitExpression(node: TupleExpression, parent?: AstNode): T | void {}
+  visitStructLitExpression(
+    node: StructLitExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitArrayLitExpression(
+    node: ArrayLitExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitSignatureExpression(
+    node: SignatureExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitClosureExpression(node: ClosureExpression, parent?: AstNode): T | void {}
+  visitVariableDeclaration(
+    node: VariableDeclaration,
+    parent?: AstNode
+  ): T | void {}
+  visitFunctionDeclaration(
+    node: FunctionDeclaration,
+    parent?: AstNode
+  ): T | void {}
+  visitExpressionStatement(
+    node: ExpressionStatement,
+    parent?: AstNode
+  ): T | void {}
+  visitCodeBlock(node: CodeBlock, parent?: AstNode): T | void {}
 }

@@ -145,6 +145,7 @@ export enum Tok {
   Comma,
   Semicolon,
   Colon,
+  FatArrow,
   Arrow,
   LStrExpr,
   RStrExpr,
@@ -309,6 +310,7 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: ";" },
   { s: ":", flags: TFlags.AssignmentOp },
   { s: "=>" },
+  { s: "->" },
   { s: "<`" },
   { s: "`>" },
   { s: "<error>" },
@@ -342,7 +344,11 @@ export function isPrimitiveType(id: Tok): boolean {
   return ((TOKEN_LIST[id].flags || 0) & TFlags.Type) === TFlags.Type;
 }
 
-export function isKeyword(ident: string): Tok | undefined {
+export function isKeyword(id: Tok): boolean {
+  return ((TOKEN_LIST[id].flags || 0) & TFlags.Keyword) === TFlags.Keyword;
+}
+
+export function isKeywordString(ident: string): Tok | undefined {
   const c1 = ident[0].toUpperCase();
   if (c1 == ident[0]) return undefined;
 

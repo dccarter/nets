@@ -9,9 +9,7 @@ const L = new Logger();
 const src = new Source(
   "<stdin>",
   `
-func hello(n: i32) = {
-    const b = n * 100
-}
+func name(cb: (a: b) -> name) = true
 `
 );
 const lexer = new Lexer(L, src);
