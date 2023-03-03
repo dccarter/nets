@@ -51,6 +51,7 @@ export enum Tok {
   Private,
   Protected,
   Public,
+  Opaque,
   Override,
   Return,
   Satisfies,
@@ -199,13 +200,21 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "func", flags: TFlags.Keyword },
   { s: "if", flags: TFlags.Keyword },
   { s: "import", flags: TFlags.Keyword },
-  { s: "in", flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp },
+  {
+    s: "in",
+    flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp,
+    prec: 5,
+  },
   { s: "i8", flags: TFlags.Keyword | TFlags.Type },
   { s: "i16", flags: TFlags.Keyword | TFlags.Type },
   { s: "i32", flags: TFlags.Keyword | TFlags.Type },
   { s: "i64", flags: TFlags.Keyword | TFlags.Type },
   { s: "i128", flags: TFlags.Keyword | TFlags.Type },
-  { s: "instanceof", flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp },
+  {
+    s: "instanceof",
+    flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp,
+    prec: 5,
+  },
   { s: "interface", flags: TFlags.Keyword },
   { s: "is", flags: TFlags.Keyword },
   { s: "keyof", flags: TFlags.Keyword },
@@ -217,6 +226,7 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "protected", flags: TFlags.Keyword },
   { s: "public", flags: TFlags.Keyword },
   { s: "override", flags: TFlags.Keyword },
+  { s: "opaque", flags: TFlags.Keyword },
   { s: "return", flags: TFlags.Keyword },
   { s: "satisfies", flags: TFlags.Keyword },
   { s: "static", flags: TFlags.Keyword },
@@ -250,34 +260,34 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "<float>" },
   { s: "<ident>" },
   { s: "<string>" },
-  { s: "+", flags: TFlags.UnaryOp | TFlags.BinaryOp },
-  { s: "-", flags: TFlags.UnaryOp | TFlags.BinaryOp },
-  { s: "*", flags: TFlags.BinaryOp },
-  { s: "/", flags: TFlags.BinaryOp },
-  { s: "%", flags: TFlags.BinaryOp },
-  { s: "**", flags: TFlags.BinaryOp },
+  { s: "+", flags: TFlags.UnaryOp | TFlags.BinaryOp, prec: 3 },
+  { s: "-", flags: TFlags.UnaryOp | TFlags.BinaryOp, prec: 3 },
+  { s: "*", flags: TFlags.BinaryOp, prec: 2 },
+  { s: "/", flags: TFlags.BinaryOp, prec: 2 },
+  { s: "%", flags: TFlags.BinaryOp, prec: 2 },
+  { s: "**", flags: TFlags.BinaryOp, prec: 1 },
   { s: "++", flags: TFlags.PrefixOp | TFlags.PostfixOp },
   { s: "--", flags: TFlags.PrefixOp | TFlags.PostfixOp },
-  { s: "&", flags: TFlags.BinaryOp },
-  { s: "|", flags: TFlags.BinaryOp },
-  { s: "^", flags: TFlags.BinaryOp },
-  { s: "<<", flags: TFlags.BinaryOp },
-  { s: ">>", flags: TFlags.BinaryOp },
-  { s: ">>>", flags: TFlags.BinaryOp },
+  { s: "&", flags: TFlags.BinaryOp, prec: 7 },
+  { s: "|", flags: TFlags.BinaryOp, prec: 9 },
+  { s: "^", flags: TFlags.BinaryOp, prec: 8 },
+  { s: "<<", flags: TFlags.BinaryOp, prec: 4 },
+  { s: ">>", flags: TFlags.BinaryOp, prec: 4 },
+  { s: ">>>", flags: TFlags.BinaryOp, prec: 4 },
   { s: "~", flags: TFlags.UnaryOp },
   { s: "!", flags: TFlags.UnaryOp },
-  { s: ">", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "<", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: ">=", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "<=", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "==", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "!=", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "===", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "!==", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "&&", flags: TFlags.BinaryOp | TFlags.LogicOp },
-  { s: "||", flags: TFlags.BinaryOp | TFlags.LogicOp },
+  { s: ">", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 5 },
+  { s: "<", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 5 },
+  { s: ">=", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 5 },
+  { s: "<=", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 5 },
+  { s: "==", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 6 },
+  { s: "!=", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 6 },
+  { s: "===", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 6 },
+  { s: "!==", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 6 },
+  { s: "&&", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 10 },
+  { s: "||", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 11 },
   { s: "?", flags: TFlags.TernaryOp },
-  { s: "??", flags: TFlags.BinaryOp | TFlags.LogicOp },
+  { s: "??", flags: TFlags.BinaryOp | TFlags.LogicOp, prec: 11 },
   { s: "?." },
   { s: "=", flags: TFlags.AssignmentOp },
   { s: "+=", flags: TFlags.AssignmentOp, sop: Tok.Plus },
@@ -318,11 +328,13 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
 
 const hasFlag = (value: { [key: string]: any }, flag: TFlags) =>
   ((value.flags || 0) & flag) == flag;
-const buildTokenGroup = (flag: TFlags) =>
-  TOKEN_LIST.map((info, op) => ({
-    op,
-    info,
-  })).filter(({ info }) => hasFlag(info, flag));
+function buildTokenGroup(flag: TFlags): Map<Tok, { [key: string]: any }> {
+  const group = new Map<Tok, { [key: string]: any }>();
+  TOKEN_LIST.forEach((info, index) => {
+    if (hasFlag(info, flag)) group.set(index, info);
+  });
+  return group;
+}
 
 export const BINARY_OPS = buildTokenGroup(TFlags.BinaryOp);
 export const UNARY_OPS = buildTokenGroup(TFlags.UnaryOp);
@@ -337,15 +349,30 @@ export const PRIMITIVE_TYPES = buildTokenGroup(TFlags.Type);
 type TokenValue = number | string | undefined | boolean;
 
 export function isLogicOperator(id: Tok): boolean {
-  return ((TOKEN_LIST[id].flags || 0) & TFlags.LogicOp) === TFlags.LogicOp;
+  return LOGIC_OPS.get(id) !== undefined;
+}
+
+export function isBinaryOperator(id: Tok): boolean {
+  return BINARY_OPS.get(id) !== undefined;
+}
+
+export const MAX_BINARY_OP_PRECEDENCE = (() => {
+  var max = 0;
+  BINARY_OPS.forEach(({ prec }) => (max = Math.max(max, prec)));
+  return max;
+})();
+
+export function binaryOperatorPrecedence(id: Tok): number {
+  const op = BINARY_OPS.get(id);
+  return op ? op.info.prec : MAX_BINARY_OP_PRECEDENCE + 1;
 }
 
 export function isPrimitiveType(id: Tok): boolean {
-  return ((TOKEN_LIST[id].flags || 0) & TFlags.Type) === TFlags.Type;
+  return PRIMITIVE_TYPES.get(id) !== undefined;
 }
 
 export function isKeyword(id: Tok): boolean {
-  return ((TOKEN_LIST[id].flags || 0) & TFlags.Keyword) === TFlags.Keyword;
+  return KEYWORDS.get(id) !== undefined;
 }
 
 export function isKeywordString(ident: string): Tok | undefined {

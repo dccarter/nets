@@ -9,7 +9,10 @@ const L = new Logger();
 const src = new Source(
   "<stdin>",
   `
-func name(cb: (a: b) -> name) = true
+func println(...args: T[], name: func(i32) -> i32) {
+    const a = 10;
+    var b : map[string, i32] = 100;
+}
 `
 );
 const lexer = new Lexer(L, src);

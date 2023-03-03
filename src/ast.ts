@@ -28,18 +28,34 @@ export enum Ast {
   DotExpr,
   MemberAccessExpr,
   TupleExpr,
-  StructLitExpr,
-  ArrayLitExpr,
+  StructExpr,
+  ArrayExpr,
+  StructFieldExpr,
   Signature,
   ClosureExpr,
   Block,
   VariableDecl,
   FuncDecl,
   ExpressionStmt,
+  TupleType,
+  ArrayType,
+  FuncType,
+  PointerType,
+  GTypeParam,
+  AttributeValue,
+  Attribute,
+  FuncParams,
+  FuncParam,
+}
+
+export interface Operation {
+  id: Tok;
+  range?: Range;
 }
 
 export class AstNode {
   public next?: AstNode = undefined;
+  public parent?: AstNode = undefined;
 
   constructor(public readonly id: Ast, public range?: Range) {}
 
@@ -100,13 +116,13 @@ export class Program extends AstNode {
   }
 }
 
-export class PrimitiveIdent extends AstNode {
-  constructor(public tok: Tok, range?: Range) {
+export class PrimitiveType extends AstNode {
+  constructor(public op: Tok, range?: Range) {
     super(Ast.Primitive, range);
   }
 
   clone(): AstNode {
-    return new PrimitiveIdent(this.tok, this.range);
+    return new PrimitiveType(this.op, this.range);
   }
 }
 
@@ -171,8 +187,10 @@ export class Identifier extends AstNode {
 }
 
 export class StringExpression extends AstNode {
-  parts: AstNodeList = new AstNodeList();
-  constructor(range?: Range) {
+  constructor(
+    public readonly parts: AstNodeList = new AstNodeList(),
+    range?: Range
+  ) {
     super(Ast.StrExpr, range);
   }
 
@@ -181,13 +199,7 @@ export class StringExpression extends AstNode {
   }
 
   clone(): AstNode {
-    const copy = new StringExpression(this.range);
-    var node = this.parts.first;
-    while (node) {
-      copy.parts.add(node.clone());
-      node = node.next;
-    }
-    return copy;
+    return new StringExpression(this.parts.clone(), this.range);
   }
 }
 
@@ -202,39 +214,43 @@ export class GroupingExpression extends AstNode {
 }
 
 export class PrefixExpression extends AstNode {
-  constructor(public op: Tok, public expr: AstNode, range?: Range) {
+  constructor(public op: Operation, public expr: AstNode, range?: Range) {
     super(Ast.PrefixExpr, range);
   }
 
   clone(): AstNode {
-    return new PrefixExpression(this.op, this.expr.clone(), this.range);
+    return new PrefixExpression(
+      { ...{ ...this.op } },
+      this.expr.clone(),
+      this.range
+    );
   }
 }
 
 export class PostfixExpression extends AstNode {
-  constructor(public op: Tok, public expr: AstNode, range?: Range) {
+  constructor(public op: Operation, public expr: AstNode, range?: Range) {
     super(Ast.PostfixExpr, range);
   }
 
   clone(): AstNode {
-    return new PostfixExpression(this.op, this.expr.clone(), this.range);
+    return new PostfixExpression({ ...this.op }, this.expr.clone(), this.range);
   }
 }
 
 export class UnaryExpression extends AstNode {
-  constructor(public op: Tok, public expr: AstNode, range?: Range) {
+  constructor(public op: Operation, public expr: AstNode, range?: Range) {
     super(Ast.UnaryExpr, range);
   }
 
   clone(): AstNode {
-    return new UnaryExpression(this.op, this.expr.clone(), this.range);
+    return new UnaryExpression({ ...this.op }, this.expr.clone(), this.range);
   }
 }
 
 export class BinaryExpression extends AstNode {
   constructor(
     public lhs: AstNode,
-    public op: Tok,
+    public op: Operation,
     public rhs: AstNode,
     range?: Range
   ) {
@@ -244,7 +260,7 @@ export class BinaryExpression extends AstNode {
   clone(): AstNode {
     return new BinaryExpression(
       this.lhs.clone(),
-      this.op,
+      { ...this.op },
       this.rhs.clone(),
       this.range
     );
@@ -274,7 +290,7 @@ export class TernaryExpression extends AstNode {
 export class AssignmentExpression extends AstNode {
   constructor(
     public lhs: AstNode,
-    public op: Tok,
+    public op: Operation,
     public rhs: AstNode,
     range?: Range
   ) {
@@ -284,7 +300,7 @@ export class AssignmentExpression extends AstNode {
   clone(): AstNode {
     return new AssignmentExpression(
       this.lhs.clone(),
-      this.op,
+      { ...this.op },
       this.rhs.clone(),
       this.range
     );
@@ -374,7 +390,7 @@ export class DotExpression extends AstNode {
 export class MemberAccessExpression extends AstNode {
   constructor(
     public target: AstNode,
-    public op: Tok,
+    public op: Operation,
     public member: AstNode,
     range?: Range,
     public dot?: boolean
@@ -385,7 +401,7 @@ export class MemberAccessExpression extends AstNode {
   clone(): AstNode {
     return new MemberAccessExpression(
       this.target.clone(),
-      this.op,
+      { ...this.op },
       this.member.clone(),
       this.range,
       this.dot
@@ -394,44 +410,102 @@ export class MemberAccessExpression extends AstNode {
 }
 
 export class TupleExpression extends AstNode {
-  constructor(public exprs: AstNodeList, range?: Range) {
+  constructor(public elements: AstNodeList, range?: Range) {
     super(Ast.TupleExpr, range);
   }
 
   clone(): AstNode {
-    return new TupleExpression(this.exprs.clone(), this.range);
+    return new TupleExpression(this.elements.clone(), this.range);
   }
 
   add(node: AstNode) {
-    this.exprs.add(node);
+    this.elements.add(node);
   }
 }
 
-export class StructLitExpression extends AstNode {
-  constructor(public exprs: AstNodeList, range?: Range) {
-    super(Ast.StructLitExpr, range);
+export class StructExpression extends AstNode {
+  constructor(
+    public readonly lhs: AstNode,
+    public readonly fields: AstNodeList,
+    range?: Range
+  ) {
+    super(Ast.StructExpr, range);
   }
 
   clone(): AstNode {
-    return new StructLitExpression(this.exprs.clone(), this.range);
+    return new StructExpression(
+      this.lhs.clone(),
+      this.fields.clone(),
+      this.range
+    );
   }
 
   add(node: AstNode) {
-    this.exprs.add(node);
+    this.fields.add(node);
   }
 }
 
-export class ArrayLitExpression extends AstNode {
-  constructor(public exprs: AstNodeList, range?: Range) {
-    super(Ast.ArrayLitExpr, range);
+export class StructFieldExpression extends AstNode {
+  constructor(
+    public readonly name: AstNode,
+    public readonly value: AstNode,
+    range?: Range
+  ) {
+    super(Ast.StructFieldExpr, range);
   }
 
   clone(): AstNode {
-    return new ArrayLitExpression(this.exprs.clone(), this.range);
+    return new StructFieldExpression(
+      this.name.clone(),
+      this.value.clone(),
+      this.range
+    );
+  }
+}
+
+export class AttributeValue extends AstNode {
+  constructor(
+    public readonly name: AstNode,
+    public readonly value: AstNode,
+    range?: Range
+  ) {
+    super(Ast.AttributeValue, range);
+  }
+
+  clone(): AstNode {
+    return new AttributeValue(
+      this.name.clone(),
+      this.value.clone(),
+      this.range
+    );
+  }
+}
+
+export class Attribute extends AstNode {
+  constructor(
+    public readonly name: AstNode,
+    public readonly values: AstNodeList = new AstNodeList(),
+    range?: Range
+  ) {
+    super(Ast.Attribute, range);
+  }
+
+  clone(): AstNode {
+    return new Attribute(this.name.clone(), this.values.clone(), this.range);
+  }
+}
+
+export class ArrayExpression extends AstNode {
+  constructor(public elements: AstNodeList, range?: Range) {
+    super(Ast.ArrayExpr, range);
+  }
+
+  clone(): AstNode {
+    return new ArrayExpression(this.elements.clone(), this.range);
   }
 
   add(node: AstNode) {
-    this.exprs.add(node);
+    this.elements.add(node);
   }
 }
 
@@ -468,16 +542,27 @@ export class ClosureExpression extends AstNode {
     );
   }
 }
+export class Declaration extends AstNode {
+  constructor(
+    public readonly id: Ast,
+    range?: Range,
+    public attrs?: AstNodeList
+  ) {
+    super(id, range);
+  }
+}
 
-export class VariableDeclaration extends AstNode {
+export class VariableDeclaration extends Declaration {
   constructor(
     public modifier: Tok,
-    public variable: AstNode,
+    public variable: AstNodeList,
     public type?: AstNode,
     public init?: AstNode,
-    range?: Range
+    public isPublic?: boolean,
+    range?: Range,
+    attrs?: AstNodeList
   ) {
-    super(Ast.VariableDecl, range);
+    super(Ast.VariableDecl, range, attrs);
   }
 
   clone(): AstNode {
@@ -486,29 +571,37 @@ export class VariableDeclaration extends AstNode {
       this.variable.clone(),
       this.type?.clone(),
       this.init?.clone(),
-      this.range
+      this.isPublic,
+      this.range,
+      this.attrs?.clone()
     );
   }
 }
 
-export class FunctionDeclaration extends AstNode {
+export class FunctionDeclaration extends Declaration {
   constructor(
-    public name: string,
-    public signature: AstNode,
-    public body: AstNode,
-    public isAsync?: boolean,
-    range?: Range
+    public readonly name: string,
+    public readonly signature: AstNode,
+    public readonly body?: AstNode,
+    public readonly isAsync?: boolean,
+    public readonly genericParams?: AstNodeList,
+    public readonly isPublic?: boolean,
+    range?: Range,
+    attrs?: AstNodeList
   ) {
-    super(Ast.FuncDecl, range);
+    super(Ast.FuncDecl, range, attrs);
   }
 
   clone(): AstNode {
     return new FunctionDeclaration(
       this.name,
       this.signature.clone(),
-      this.body.clone(),
+      this.body?.clone(),
       this.isAsync,
-      this.range
+      this.genericParams?.clone(),
+      this.isPublic,
+      this.range,
+      this.attrs?.clone()
     );
   }
 }
@@ -540,6 +633,118 @@ export class CodeBlock extends AstNode {
   }
 }
 
+export class TupleType extends AstNode {
+  constructor(public readonly elements: AstNodeList, range?: Range) {
+    super(Ast.TupleType, range);
+  }
+
+  clone(): AstNode {
+    return new TupleType(this.elements.clone(), this.range);
+  }
+
+  add(node: AstNode) {
+    this.elements.add(node);
+  }
+}
+
+export class FunctionParams extends AstNode {
+  constructor(public readonly params: AstNodeList, range?: Range) {
+    super(Ast.FuncParams, range);
+  }
+
+  clone(): AstNode {
+    return new FunctionParams(this.params.clone(), this.range);
+  }
+
+  add(node: AstNode) {
+    this.params.add(node);
+  }
+}
+
+export class FunctionParam extends AstNode {
+  constructor(
+    public readonly name: AstNode,
+    public readonly type: AstNode,
+    public readonly isVariadic?: boolean,
+    range?: Range
+  ) {
+    super(Ast.FuncParam, range);
+  }
+
+  clone(): AstNode {
+    return new FunctionParam(
+      this.name.clone(),
+      this.type.clone(),
+      this.isVariadic,
+      this.range
+    );
+  }
+}
+
+export class ArrayType extends AstNode {
+  constructor(public readonly elementType: AstNode, range?: Range) {
+    super(Ast.ArrayType, range);
+  }
+
+  clone(): AstNode {
+    return new ArrayType(this.elementType.clone(), this.range);
+  }
+}
+
+export class FunctionType extends AstNode {
+  constructor(
+    public readonly params: AstNode,
+    public readonly ret: AstNode,
+    public readonly typeParams: AstNodeList = new AstNodeList(),
+    public readonly isAsync?: boolean,
+    range?: Range
+  ) {
+    super(Ast.FuncType, range);
+  }
+
+  clone(): AstNode {
+    return new FunctionType(
+      this.params.clone(),
+      this.ret.clone(),
+      this.typeParams.clone(),
+      this.isAsync,
+      this.range
+    );
+  }
+}
+
+export class PointerType extends AstNode {
+  constructor(
+    public readonly pointee: AstNode,
+    public readonly isConst?: boolean,
+    range?: Range
+  ) {
+    super(Ast.PointerType, range);
+  }
+
+  clone(): AstNode {
+    return new PointerType(this.pointee.clone(), this.isConst, this.range);
+  }
+}
+
+export class GenericTypeParam extends AstNode {
+  constructor(
+    public readonly name: AstNode,
+    public readonly constraints: AstNodeList = new AstNodeList(),
+    range?: Range
+  ) {
+    super(Ast.GTypeParam, range);
+  }
+
+  clone(): AstNode {
+    return new GenericTypeParam(
+      this.name.clone(),
+      this.constraints.clone(),
+      this.range
+    );
+  }
+}
+
 export abstract class AstVisitor<T = void> {
   dispatch: {
     [TNode in Ast as AstNode["id"]]: (
@@ -554,7 +759,7 @@ export abstract class AstVisitor<T = void> {
     [Ast.Program]: (curr: AstNode, parent?: AstNode) =>
       this.visitProgram(<Program>curr, parent),
     [Ast.Primitive]: (curr: AstNode, parent?: AstNode) =>
-      this.visitPrimitive(<PrimitiveIdent>curr, parent),
+      this.visitPrimitive(<PrimitiveType>curr, parent),
     [Ast.BoolLit]: (curr: AstNode, parent?: AstNode) =>
       this.visitBoolLiteral(<BoolLit>curr, parent),
     [Ast.CharLit]: (curr: AstNode, parent?: AstNode) =>
@@ -598,11 +803,13 @@ export abstract class AstVisitor<T = void> {
     [Ast.MemberAccessExpr]: (curr: AstNode, parent?: AstNode) =>
       this.visitMemberAccessExpression(<MemberAccessExpression>curr, parent),
     [Ast.TupleExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitTupleLitExpression(<TupleExpression>curr, parent),
-    [Ast.StructLitExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitStructLitExpression(<StructLitExpression>curr, parent),
-    [Ast.ArrayLitExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitArrayLitExpression(<ArrayLitExpression>curr, parent),
+      this.visitTupleExpression(<TupleExpression>curr, parent),
+    [Ast.StructFieldExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStructFieldExpression(<StructFieldExpression>curr, parent),
+    [Ast.StructExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStructExpression(<StructExpression>curr, parent),
+    [Ast.ArrayExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitArrayLitExpression(<ArrayExpression>curr, parent),
     [Ast.Signature]: (curr: AstNode, parent?: AstNode) =>
       this.visitSignatureExpression(<SignatureExpression>curr, parent),
     [Ast.ClosureExpr]: (curr: AstNode, parent?: AstNode) =>
@@ -615,6 +822,24 @@ export abstract class AstVisitor<T = void> {
       this.visitExpressionStatement(<ExpressionStatement>curr, parent),
     [Ast.Block]: (curr: AstNode, parent?: AstNode) =>
       this.visitCodeBlock(<CodeBlock>curr, parent),
+    [Ast.TupleType]: (curr: AstNode, parent?: AstNode) =>
+      this.visitTupleType(<TupleType>curr, parent),
+    [Ast.ArrayType]: (curr: AstNode, parent?: AstNode) =>
+      this.visitArrayType(<ArrayType>curr, parent),
+    [Ast.FuncType]: (curr: AstNode, parent?: AstNode) =>
+      this.visitFunctionType(<FunctionType>curr, parent),
+    [Ast.FuncParams]: (curr: AstNode, parent?: AstNode) =>
+      this.visitFuncParams(<FunctionParams>curr, parent),
+    [Ast.FuncParam]: (curr: AstNode, parent?: AstNode) =>
+      this.visitFuncParam(<FunctionParam>curr, parent),
+    [Ast.PointerType]: (curr: AstNode, parent?: AstNode) =>
+      this.visitPointerType(<PointerType>curr, parent),
+    [Ast.GTypeParam]: (curr: AstNode, parent?: AstNode) =>
+      this.visitGenericTypeParam(<GenericTypeParam>curr, parent),
+    [Ast.AttributeValue]: (curr: AstNode, parent?: AstNode) =>
+      this.visitAttributeValue(<AttributeValue>curr, parent),
+    [Ast.Attribute]: (curr: AstNode, parent?: AstNode) =>
+      this.visitAttribute(<Attribute>curr, parent),
   };
 
   visit(node: AstNode, parent?: AstNode): T | void {
@@ -624,7 +849,7 @@ export abstract class AstVisitor<T = void> {
   visitProgram(node: Program, parent?: AstNode): T | void {}
   visitNull(node: AstNode, parent?: AstNode): T | void {}
   visitUndefined(node: AstNode, parent?: AstNode): T | void {}
-  visitPrimitive(node: PrimitiveIdent, parent?: AstNode): T | void {}
+  visitPrimitive(node: PrimitiveType, parent?: AstNode): T | void {}
   visitBoolLiteral(node: BoolLit, parent?: AstNode): T | void {}
   visitCharacterLiteral(node: CharacterLit, parent?: AstNode): T | void {}
   visitIntegerLiteral(node: IntegerLit, parent?: AstNode): T | void {}
@@ -655,15 +880,9 @@ export abstract class AstVisitor<T = void> {
     node: MemberAccessExpression,
     parent?: AstNode
   ): T | void {}
-  visitTupleLitExpression(node: TupleExpression, parent?: AstNode): T | void {}
-  visitStructLitExpression(
-    node: StructLitExpression,
-    parent?: AstNode
-  ): T | void {}
-  visitArrayLitExpression(
-    node: ArrayLitExpression,
-    parent?: AstNode
-  ): T | void {}
+  visitTupleExpression(node: TupleExpression, parent?: AstNode): T | void {}
+  visitStructExpression(node: StructExpression, parent?: AstNode): T | void {}
+  visitArrayLitExpression(node: ArrayExpression, parent?: AstNode): T | void {}
   visitSignatureExpression(
     node: SignatureExpression,
     parent?: AstNode
@@ -682,4 +901,26 @@ export abstract class AstVisitor<T = void> {
     parent?: AstNode
   ): T | void {}
   visitCodeBlock(node: CodeBlock, parent?: AstNode): T | void {}
+  visitTupleType(node: TupleType, parent?: AstNode): T | void {}
+  visitArrayType(node: ArrayType, parent?: AstNode): T | void {}
+  visitFunctionType(node: FunctionType, parent?: AstNode): T | void {}
+  visitFuncParams(node: FunctionParams, parent?: AstNode): T | void {}
+  visitFuncParam(node: FunctionParam, parent?: AstNode): T | void {}
+  visitPointerType(node: PointerType, parent?: AstNode): T | void {}
+  visitGenericTypeParam(node: GenericTypeParam, parent?: AstNode): T | void {}
+  visitStructFieldExpression(
+    node: StructFieldExpression,
+    parent?: AstNode
+  ): T | void {}
+  visitAttributeValue(node: AttributeValue, parent?: AstNode): T | void {}
+  visitAttribute(node: Attribute, parent?: AstNode): T | void {}
+}
+
+export function isValueDeclaration(id: Ast): boolean {
+  switch (id) {
+    case Ast.FuncDecl:
+    case Ast.VariableDecl:
+      return true;
+  }
+  return false;
 }
