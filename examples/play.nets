@@ -1,7 +1,12 @@
 /**
  * Development playgroud for nets
  */
+
 async func hello() = "Hello"
 
-func main(...args: string[10][hello!]) {
+func main(...args: string[]) {
+    println!("Hello")
+    if (const x = hello()) {
+        console.log(x)
+    }
 }

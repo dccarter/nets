@@ -193,8 +193,15 @@ export class Parser {
     return this.ternary(() => this.primary(true));
   }
 
+  private ifStatement(): AstNode {
+    const tok = this.match(Tok.If);
+    const;
+  }
+
   private statement(): AstNode {
     switch (this.peek().id) {
+      case Tok.If:
+        return this.ifStatement();
       case Tok.Var:
       case Tok.Const:
         return this.variable();
@@ -586,17 +593,6 @@ export class Parser {
     }
     this.advance();
     return new PrimitiveType(tok.id, tok.range);
-  }
-
-  private arrayType(): AstNode {
-    const tok = this.consume(Tok.LBracket);
-    const elementType = this.parseType();
-    this.consume(Tok.RBracket);
-
-    return new ArrayType(
-      elementType,
-      Range.extend(tok.range, this.previous().range)
-    );
   }
 
   /**
