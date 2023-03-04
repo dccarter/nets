@@ -1,0 +1,7 @@
+/**
+ * Development playgroud for nets
+ */
+async func hello() = "Hello"
+
+func main(...args: string[10][hello!]) {
+}

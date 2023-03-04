@@ -21,6 +21,7 @@ export enum Ast {
   TernaryExpr,
   AssignmentExpr,
   CallExpr,
+  MacroCallExpr,
   SpreadExpr,
   YieldExpr,
   NewExpr,
@@ -308,21 +309,36 @@ export class AssignmentExpression extends AstNode {
 }
 
 export class CallExpression extends AstNode {
-  constructor(public expr: AstNode, public args: AstNodeList, range?: Range) {
+  constructor(public callee: AstNode, public args: AstNodeList, range?: Range) {
     super(Ast.CallExpr, range);
   }
 
   clone(): AstNode {
     const expr = new CallExpression(
-      this.expr.clone(),
-      new AstNodeList(),
+      this.callee.clone(),
+      this.args.clone(),
       this.range
     );
-    var node = this.args.first;
-    while (node) {
-      expr.args.add(node.clone());
-      node = node.next;
-    }
+
+    return expr;
+  }
+}
+
+export class MacroCallExpression extends AstNode {
+  constructor(
+    public readonly callee: AstNode,
+    public readonly args?: AstNodeList,
+    range?: Range
+  ) {
+    super(Ast.MacroCallExpr, range);
+  }
+
+  clone(): AstNode {
+    const expr = new MacroCallExpression(
+      this.callee.clone(),
+      this.args?.clone(),
+      this.range
+    );
 
     return expr;
   }
@@ -682,12 +698,20 @@ export class FunctionParam extends AstNode {
 }
 
 export class ArrayType extends AstNode {
-  constructor(public readonly elementType: AstNode, range?: Range) {
+  constructor(
+    public readonly elementType: AstNode,
+    public readonly size?: AstNode,
+    range?: Range
+  ) {
     super(Ast.ArrayType, range);
   }
 
   clone(): AstNode {
-    return new ArrayType(this.elementType.clone(), this.range);
+    return new ArrayType(
+      this.elementType.clone(),
+      this.size?.clone(),
+      this.range
+    );
   }
 }
 
@@ -790,6 +814,8 @@ export abstract class AstVisitor<T = void> {
       this.visitAssignmentExpression(<AssignmentExpression>curr, parent),
     [Ast.CallExpr]: (curr: AstNode, parent?: AstNode) =>
       this.visitCallExpression(<CallExpression>curr, parent),
+    [Ast.MacroCallExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitMacroCallExpression(<MacroCallExpression>curr, parent),
     [Ast.SpreadExpr]: (curr: AstNode, parent?: AstNode) =>
       this.visitSpreadExpression(<SpreadExpression>curr, parent),
     [Ast.YieldExpr]: (curr: AstNode, parent?: AstNode) =>
@@ -871,6 +897,10 @@ export abstract class AstVisitor<T = void> {
     parent?: AstNode
   ): T | void {}
   visitCallExpression(node: CallExpression, parent?: AstNode): T | void {}
+  visitMacroCallExpression(
+    node: MacroCallExpression,
+    parent?: AstNode
+  ): T | void {}
   visitSpreadExpression(node: SpreadExpression, parent?: AstNode): T | void {}
   visitYieldExpression(node: YieldExpression, parent?: AstNode): T | void {}
   visitNewExpression(node: NewExpression, parent?: AstNode): T | void {}

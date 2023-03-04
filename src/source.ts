@@ -107,4 +107,10 @@ export class Range {
       .subarray(this.start.pos, this.end.pos + offset)
       .toString();
   }
+
+  value(): string {
+    return this.source.content
+      .subarray(this.start.pos, this.end.pos)
+      .toString();
+  }
 }

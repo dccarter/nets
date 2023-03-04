@@ -6,15 +6,7 @@ import { Source } from "./src/source";
 import { Timers } from "./src/timer";
 
 const L = new Logger();
-const src = new Source(
-  "<stdin>",
-  `
-func println(...args: T[], name: func(i32) -> i32) {
-    const a = 10;
-    var b : map[string, i32] = 100;
-}
-`
-);
+const src = new Source("examples/play.nets");
 const lexer = new Lexer(L, src);
 
 const parser = new Parser(L, lexer);

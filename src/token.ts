@@ -163,6 +163,7 @@ export enum TFlags {
   PostfixOp = 0b0000000001000000,
   Keyword = 0b0000000010000000,
   Type = 0b0000000100000000,
+  ErrorBoundary = 0b0000001000000000,
 }
 
 /**
@@ -175,31 +176,31 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "assert", flags: TFlags.Keyword },
   { s: "auto", flags: TFlags.Keyword },
   { s: "bool", flags: TFlags.Keyword | TFlags.Type },
-  { s: "break", flags: TFlags.Keyword },
-  { s: "case", flags: TFlags.Keyword },
-  { s: "catch", flags: TFlags.Keyword },
+  { s: "break", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "case", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "catch", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "char", flags: TFlags.Keyword | TFlags.Type },
-  { s: "class", flags: TFlags.Keyword },
-  { s: "continue", flags: TFlags.Keyword },
-  { s: "const", flags: TFlags.Keyword },
+  { s: "class", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "continue", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "const", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "debugger", flags: TFlags.Keyword },
-  { s: "default", flags: TFlags.Keyword },
-  { s: "defer", flags: TFlags.Keyword },
+  { s: "default", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "defer", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "delete", flags: TFlags.Keyword | TFlags.PrefixOp },
-  { s: "do", flags: TFlags.Keyword },
-  { s: "else", flags: TFlags.Keyword },
-  { s: "enum", flags: TFlags.Keyword },
-  { s: "export", flags: TFlags.Keyword },
+  { s: "do", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "else", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "enum", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "export", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "extends", flags: TFlags.Keyword },
   { s: "f32", flags: TFlags.Keyword | TFlags.Type },
   { s: "f64", flags: TFlags.Keyword | TFlags.Type },
   { s: "false", flags: TFlags.Keyword },
-  { s: "finally", flags: TFlags.Keyword },
-  { s: "for", flags: TFlags.Keyword },
+  { s: "finally", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "for", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "from", flags: TFlags.Keyword },
-  { s: "func", flags: TFlags.Keyword },
-  { s: "if", flags: TFlags.Keyword },
-  { s: "import", flags: TFlags.Keyword },
+  { s: "func", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "if", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "import", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   {
     s: "in",
     flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp,
@@ -215,43 +216,43 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
     flags: TFlags.Keyword | TFlags.BinaryOp | TFlags.LogicOp,
     prec: 5,
   },
-  { s: "interface", flags: TFlags.Keyword },
+  { s: "interface", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "is", flags: TFlags.Keyword },
   { s: "keyof", flags: TFlags.Keyword },
-  { s: "let", flags: TFlags.Keyword },
+  { s: "let", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "new", flags: TFlags.Keyword },
   { s: "null", flags: TFlags.Keyword },
-  { s: "package", flags: TFlags.Keyword },
+  { s: "package", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "private", flags: TFlags.Keyword },
   { s: "protected", flags: TFlags.Keyword },
-  { s: "public", flags: TFlags.Keyword },
+  { s: "public", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "override", flags: TFlags.Keyword },
-  { s: "opaque", flags: TFlags.Keyword },
-  { s: "return", flags: TFlags.Keyword },
+  { s: "opaque", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "return", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "satisfies", flags: TFlags.Keyword },
   { s: "static", flags: TFlags.Keyword },
   { s: "string", flags: TFlags.Keyword | TFlags.Type },
   { s: "super", flags: TFlags.Keyword },
-  { s: "switch", flags: TFlags.Keyword },
+  { s: "switch", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "symbol", flags: TFlags.Keyword },
   { s: "this", flags: TFlags.Keyword },
-  { s: "throw", flags: TFlags.Keyword },
+  { s: "throw", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "true", flags: TFlags.Keyword },
-  { s: "try", flags: TFlags.Keyword },
+  { s: "try", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "type", flags: TFlags.Keyword | TFlags.Type },
-  { s: "typeof", flags: TFlags.Keyword | TFlags.PrefixOp },
+  { s: "typeof", flags: TFlags.Keyword },
   { s: "u8", flags: TFlags.Keyword | TFlags.Type },
   { s: "u16", flags: TFlags.Keyword | TFlags.Type },
   { s: "u32", flags: TFlags.Keyword | TFlags.Type },
   { s: "u64", flags: TFlags.Keyword | TFlags.Type },
   { s: "u128", flags: TFlags.Keyword | TFlags.Type },
   { s: "undefined", flags: TFlags.Keyword },
-  { s: "var", flags: TFlags.Keyword },
-  { s: "void", flags: TFlags.Keyword | TFlags.PrefixOp | TFlags.Type },
-  { s: "while", flags: TFlags.Keyword },
+  { s: "var", flags: TFlags.Keyword | TFlags.ErrorBoundary },
+  { s: "void", flags: TFlags.Keyword | TFlags.Type },
+  { s: "while", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "with", flags: TFlags.Keyword },
   { s: "yield", flags: TFlags.Keyword },
-  { s: "async", flags: TFlags.Keyword },
+  { s: "async", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "await", flags: TFlags.Keyword | TFlags.PrefixOp },
   { s: "of", flags: TFlags.Keyword },
   { s: "<bool>" },
@@ -318,7 +319,7 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "..." },
   { s: "," },
   { s: ";" },
-  { s: ":", flags: TFlags.AssignmentOp },
+  { s: ":" },
   { s: "=>" },
   { s: "->" },
   { s: "<`" },
@@ -345,6 +346,7 @@ export const PREFIX_OPS = buildTokenGroup(TFlags.PrefixOp);
 export const POSTFIX_OPS = buildTokenGroup(TFlags.PostfixOp);
 export const KEYWORDS = buildTokenGroup(TFlags.Keyword);
 export const PRIMITIVE_TYPES = buildTokenGroup(TFlags.Type);
+export const ERROR_BOUNDARY = buildTokenGroup(TFlags.ErrorBoundary);
 
 type TokenValue = number | string | undefined | boolean;
 
@@ -356,6 +358,10 @@ export function isBinaryOperator(id: Tok): boolean {
   return BINARY_OPS.get(id) !== undefined;
 }
 
+export function isErrorBoundary(id: Tok): boolean {
+  return ERROR_BOUNDARY.get(id) !== undefined;
+}
+
 export const MAX_BINARY_OP_PRECEDENCE = (() => {
   var max = 0;
   BINARY_OPS.forEach(({ prec }) => (max = Math.max(max, prec)));
@@ -363,8 +369,8 @@ export const MAX_BINARY_OP_PRECEDENCE = (() => {
 })();
 
 export function binaryOperatorPrecedence(id: Tok): number {
-  const op = BINARY_OPS.get(id);
-  return op ? op.info.prec : MAX_BINARY_OP_PRECEDENCE + 1;
+  const info = BINARY_OPS.get(id);
+  return info ? info.prec : MAX_BINARY_OP_PRECEDENCE + 1;
 }
 
 export function isPrimitiveType(id: Tok): boolean {

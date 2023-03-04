@@ -232,7 +232,8 @@ export class Lexer {
       : new Token(Tok.RStrExpr, this.range(this.mark()));
 
     const str = this.range(p, end);
-    return new StringToken(str.str(), str);
+
+    return new StringToken(str.value(), str);
   }
 
   mark(): Location {
@@ -538,7 +539,7 @@ export class Lexer {
           }
 
           const str = this.range(pp, end);
-          return new StringToken(str.str(), str);
+          return new StringToken(str.value(), str);
         }
 
         default:

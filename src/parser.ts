@@ -22,9 +22,11 @@ import {
   FunctionParams,
   FunctionType,
   GenericTypeParam,
+  GroupingExpression,
   Identifier,
   IntegerLit,
   isValueDeclaration,
+  MacroCallExpression,
   MemberAccessExpression,
   Operation,
   PointerType,
@@ -37,6 +39,7 @@ import {
   StringLit,
   StructExpression,
   StructFieldExpression,
+  TernaryExpression,
   TupleExpression,
   TupleType,
   UnaryExpression,
@@ -45,6 +48,7 @@ import {
 import {
   ASSIGNMENT_OPS,
   binaryOperatorPrecedence,
+  isErrorBoundary,
   MAX_BINARY_OP_PRECEDENCE,
   PRIMITIVE_TYPES,
   Tok,
@@ -186,7 +190,7 @@ export class Parser {
   }
 
   private expression(): AstNode {
-    return this.assign(() => this.primary(true));
+    return this.ternary(() => this.primary(true));
   }
 
   private statement(): AstNode {
@@ -291,9 +295,13 @@ export class Parser {
     return create(args, Range.extend(start.range, this.previous().range));
   }
 
-  private tupleExpression(): AstNode {
+  private tupleExpression(orGroup: boolean = false): AstNode {
     return this.tuple(
-      (args, range) => new TupleExpression(args, range),
+      (args, range) => {
+        if (args.count === 1 && orGroup)
+          return new GroupingExpression(args.first!, args.first?.range);
+        else return new TupleExpression(args, range);
+      },
       () => this.expression()
     );
   }
@@ -306,6 +314,20 @@ export class Parser {
       (<TupleExpression>args).elements,
       Range.extend(callee.range, args.range)
     );
+  }
+
+  private macroExpression(callee: AstNode): AstNode {
+    this.consume(Tok.LNot);
+    if (this.check(Tok.LParen)) {
+      const args = this.tupleExpression();
+      return new MacroCallExpression(
+        callee,
+        (<TupleExpression>args).elements,
+        Range.extend(callee.range, args.range)
+      );
+    } else {
+      return new MacroCallExpression(callee, undefined, callee.range);
+    }
   }
 
   private block(): AstNode {
@@ -398,6 +420,9 @@ export class Parser {
           operand = this.member({ ...tok }, operand);
           continue;
         }
+        case Tok.LNot:
+          operand = this.macroExpression(operand);
+          continue;
         case Tok.LParen: {
           operand = this.callExpression(operand);
           continue;
@@ -410,7 +435,7 @@ export class Parser {
       return new PostfixExpression(
         { ...tok },
         operand,
-        Range.extend(tok.range, operand.range)
+        Range.extend(operand.range, tok.range)
       );
     }
   }
@@ -481,6 +506,23 @@ export class Parser {
     return this.binary(lhs, MAX_BINARY_OP_PRECEDENCE, primary);
   }
 
+  private ternary(primary: () => AstNode): AstNode {
+    const cond = this.assign(primary);
+    if (this.match(Tok.Question)) {
+      const _true = this.ternary(primary);
+      this.consume(Tok.Colon);
+      const _false = this.ternary(primary);
+      return new TernaryExpression(
+        cond,
+        _true,
+        _false,
+        Range.extend(cond.range, _false.range)
+      );
+    }
+
+    return cond;
+  }
+
   private stringExpr(): AstNode {
     const tok = this.consume(Tok.LStrExpr);
     const parts = new AstNodeList();
@@ -514,7 +556,7 @@ export class Parser {
       case Tok.StrLit:
         return this.string();
       case Tok.LParen:
-        return this.tupleExpression();
+        return this.tupleExpression(true);
       case Tok.LStrExpr:
         return this.stringExpr();
       case Tok.LBrace:
@@ -656,30 +698,61 @@ export class Parser {
 
   private parseType(): AstNode {
     const tok = this.peek();
+    var node: AstNode;
     if (PRIMITIVE_TYPES.get(tok.id)) {
-      return this.primitive();
+      node = this.primitive();
+    } else {
+      switch (tok.id) {
+        case Tok.Ident:
+          node = this.path();
+          break;
+        case Tok.LParen:
+          node = this.tuple(
+            (args, range) => new TupleType(args, range),
+            () => this.parseType()
+          );
+          break;
+        case Tok.Async:
+        case Tok.Func:
+          node = this.funcType();
+          break;
+        case Tok.BAnd:
+          node = this.pointerType();
+          break;
+        default:
+          this.reportUnexpectedToken("a type", this.advance());
+      }
     }
 
-    switch (tok.id) {
-      case Tok.Ident:
-        return this.path();
-      case Tok.LParen:
-        return this.tuple(
-          (args, range) => new TupleType(args, range),
-          () => this.parseType()
-        );
-      case Tok.LBracket:
-        return this.arrayType();
-      case Tok.Async:
-      case Tok.Func:
-        return this.funcType();
-      case Tok.BAnd:
-        return this.pointerType();
-      default:
-        this.reportUnexpectedToken("a type", this.advance());
+    while (this.match(Tok.LBracket)) {
+      var size: AstNode | undefined;
+      if (!this.check(Tok.RBracket)) {
+        switch (this.peek().id) {
+          case Tok.IntLit:
+            size = this.integer();
+            break;
+          case Tok.Ident:
+            size = this.path();
+            if (!this.check(Tok.LNot))
+              this.reportUnexpectedToken(
+                "size of array, can only be a macro call or integer"
+              );
+
+            if (this.check(Tok.LNot)) size = this.macroExpression(size);
+            break;
+          default:
+            this.reportUnexpectedToken("size of array, integer/macro call");
+        }
+      }
+      this.consume(Tok.RBracket);
+      node = new ArrayType(
+        node!,
+        size,
+        size ? Range.extend(node!.range, size!.range) : node!.range
+      );
     }
 
-    throw "UNREACHABLE";
+    return node!;
   }
 
   private attribute(): AstNode {
@@ -771,6 +844,11 @@ export class Parser {
     if (tok?.id === Tok.Const || this.match(Tok.Assign))
       init = this.expression();
 
+    this.consume(
+      Tok.Semicolon,
+      `expecting ';', semicolon is required after variable declaration`
+    );
+
     return new VariableDeclaration(
       tok!.id,
       names,
@@ -813,12 +891,14 @@ export class Parser {
     }
 
     var body: AstNode | undefined = undefined;
-    if (this.match(Tok.Equal)) {
+    if (this.match(Tok.Assign)) {
       body = this.expression();
+      this.match(Tok.Semicolon);
     } else if (this.check(Tok.LBrace)) {
       body = this.block();
-    } else this.match(Tok.Semicolon);
-
+    } else {
+      this.match(Tok.Semicolon);
+    }
     return new FunctionDeclaration(
       name.name,
       new SignatureExpression(
@@ -839,6 +919,7 @@ export class Parser {
       case Tok.Var:
       case Tok.Const:
         return this.variable(isPublic);
+      case Tok.Async:
       case Tok.Func:
         return this.funcDecl(isPublic);
       default:
@@ -869,19 +950,11 @@ export class Parser {
   }
 
   private synchronize() {
+    if (isErrorBoundary(this.peek().id)) return;
+
     while (!this.Eof()) {
-      switch (this.peek().id) {
-        case Tok.Func:
-        case Tok.Var:
-        case Tok.Const:
-        case Tok.Async:
-          break;
-        case Tok.Semicolon:
-          this.advance();
-          break;
-        default:
-          this.advance();
-      }
+      if (isErrorBoundary(this.peek().id)) break;
+      this.advance();
     }
   }
 
@@ -897,6 +970,7 @@ export class Parser {
   parse(): Program {
     const program = new Program();
     while (!this.Eof()) {
+      this.dumpTokenState();
       this.synchronized(() => {
         program.add(this.declaration());
       });

@@ -28,6 +28,7 @@ import {
   GroupingExpression,
   Identifier,
   IntegerLit,
+  MacroCallExpression,
   MemberAccessExpression,
   NewExpression,
   PointerType,
@@ -175,7 +176,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitCallExpression(node: CallExpression): void {
-    this.visit(node.expr);
+    this.visit(node.callee);
     write("(");
     var arg = node.args.first;
     while (arg) {
@@ -184,6 +185,16 @@ export class AstPrinter extends AstVisitor {
       if (arg) write(", ");
     }
     write(")");
+  }
+
+  visitMacroCallExpression(node: MacroCallExpression): void {
+    this.visit(node.callee);
+    write("!");
+    if (node.args) {
+      write("(");
+      this.printAstNodeList(node.args);
+      write(")");
+    }
   }
 
   visitSpreadExpression(node: SpreadExpression): void {
@@ -242,6 +253,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitStructExpression(node: StructExpression): void {
+    this.visit(node.lhs);
     write("{");
     this.printAstNodeList(node.fields);
     write("}");
@@ -297,7 +309,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitCodeBlock(node: CodeBlock): void {
-    write(this.#indent, "{\n");
+    write("{\n");
     this.#push();
     this.printAstNodeList(node.nodes, node, "\n");
     this.#pop();
@@ -319,19 +331,20 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitTupleType(node: TupleType, parent?: AstNode): void {
+  visitTupleType(node: TupleType): void {
     write("(");
     this.printAstNodeList(node.elements);
     write(")");
   }
 
-  visitArrayType(node: ArrayType, parent?: AstNode): void {
-    write("[");
+  visitArrayType(node: ArrayType): void {
     this.visit(node.elementType);
+    write("[");
+    if (node.size) this.visit(node.size);
     write("]");
   }
 
-  visitFunctionType(node: FunctionType, parent?: AstNode): void {
+  visitFunctionType(node: FunctionType): void {
     if (node.isAsync) write(fmtKeyword, "async", fmtReset, " ");
     write(fmtKeyword, "func", fmtReset);
     this.visit(node.params);
@@ -339,13 +352,13 @@ export class AstPrinter extends AstVisitor {
     this.visit(node.ret);
   }
 
-  visitFuncParams(node: FunctionParams, parent?: AstNode): void {
+  visitFuncParams(node: FunctionParams): void {
     write("(");
     this.printAstNodeList(node.params);
     write(")");
   }
 
-  visitFuncParam(node: FunctionParam, parent?: AstNode): void {
+  visitFuncParam(node: FunctionParam): void {
     if (node.isVariadic) write("...");
     this.visit(node.name);
     write(": ");
