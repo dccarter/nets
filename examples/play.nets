@@ -3,10 +3,18 @@
  */
 
 async func hello() = "Hello"
-
+// 
 func main(...args: string[]) {
+    defer file.close();
     println!("Hello")
     if (const x = hello()) {
         console.log(x)
+    }
+    
+    while (const x = iterator.next())
+        console.log("stuff")
+
+    for (var x : range(0, 10)) {
+        
     }
 }

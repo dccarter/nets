@@ -169,6 +169,9 @@ export class Lexer {
     // Parse integral part
     while (isDigit(this.getChar())) this.skipChar();
 
+    if (this.getChar() === Ascii["."] && this.peekChar() === Ascii["."])
+      return this.finishParsingNumber(false, p);
+
     return this.finishParsingNumber(this.acceptChar("."), p);
   }
 

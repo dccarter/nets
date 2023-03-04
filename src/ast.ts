@@ -47,6 +47,10 @@ export enum Ast {
   Attribute,
   FuncParams,
   FuncParam,
+  IfStmt,
+  WhileStmt,
+  ForStmt,
+  DeferStmt,
 }
 
 export interface Operation {
@@ -769,6 +773,70 @@ export class GenericTypeParam extends AstNode {
   }
 }
 
+export class IfStatement extends AstNode {
+  constructor(
+    public readonly cond: AstNode,
+    public readonly ifTrue: AstNode,
+    public readonly ifFalse?: AstNode,
+    range?: Range
+  ) {
+    super(Ast.IfStmt, range);
+  }
+
+  clone(): AstNode {
+    return new IfStatement(
+      this.cond.clone(),
+      this.ifTrue.clone(),
+      this.ifFalse?.clone(),
+      this.range
+    );
+  }
+}
+
+export class WhileStatement extends AstNode {
+  constructor(
+    public readonly cond: AstNode,
+    public readonly body: AstNode,
+    range?: Range
+  ) {
+    super(Ast.WhileStmt, range);
+  }
+
+  clone(): AstNode {
+    return new WhileStatement(this.cond.clone(), this.body.clone(), this.range);
+  }
+}
+
+export class ForStatement extends AstNode {
+  constructor(
+    public readonly init: AstNode,
+    public readonly expr: AstNode,
+    public readonly body: AstNode,
+    range?: Range
+  ) {
+    super(Ast.ForStmt, range);
+  }
+
+  clone(): AstNode {
+    return new ForStatement(
+      this.init.clone(),
+      this.expr.clone(),
+      this.body.clone(),
+      this.range
+    );
+  }
+}
+
+export class DeferStatement extends AstNode {
+  constructor(public readonly body: AstNode, range?: Range) {
+    super(Ast.DeferStmt, range);
+  }
+
+  clone(): AstNode {
+    return new DeferStatement(this.body.clone(), this.range);
+  }
+}
+
 export abstract class AstVisitor<T = void> {
   dispatch: {
     [TNode in Ast as AstNode["id"]]: (
@@ -866,6 +934,14 @@ export abstract class AstVisitor<T = void> {
       this.visitAttributeValue(<AttributeValue>curr, parent),
     [Ast.Attribute]: (curr: AstNode, parent?: AstNode) =>
       this.visitAttribute(<Attribute>curr, parent),
+    [Ast.IfStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitIfStatement(<IfStatement>curr, parent),
+    [Ast.WhileStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitWhileStatement(<WhileStatement>curr, parent),
+    [Ast.ForStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitForStatement(<ForStatement>curr, parent),
+    [Ast.DeferStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitDeferStatement(<DeferStatement>curr, parent),
   };
 
   visit(node: AstNode, parent?: AstNode): T | void {
@@ -944,6 +1020,10 @@ export abstract class AstVisitor<T = void> {
   ): T | void {}
   visitAttributeValue(node: AttributeValue, parent?: AstNode): T | void {}
   visitAttribute(node: Attribute, parent?: AstNode): T | void {}
+  visitIfStatement(node: IfStatement, parent?: AstNode): T | void {}
+  visitWhileStatement(node: WhileStatement, parent?: AstNode): T | void {}
+  visitForStatement(node: ForStatement, parent?: AstNode): T | void {}
+  visitDeferStatement(node: DeferStatement, parent?: AstNode): T | void {}
 }
 
 export function isValueDeclaration(id: Ast): boolean {

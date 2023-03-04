@@ -15,8 +15,10 @@ import {
   ClosureExpression,
   CodeBlock,
   Declaration,
+  DeferStatement,
   ExpressionStatement,
   FloatLit,
+  ForStatement,
   FunctionDeclaration,
   FunctionParam,
   FunctionParams,
@@ -24,6 +26,7 @@ import {
   GenericTypeParam,
   GroupingExpression,
   Identifier,
+  IfStatement,
   IntegerLit,
   isValueDeclaration,
   MacroCallExpression,
@@ -44,6 +47,7 @@ import {
   TupleType,
   UnaryExpression,
   VariableDeclaration,
+  WhileStatement,
 } from "./ast";
 import {
   ASSIGNMENT_OPS,
@@ -189,19 +193,92 @@ export class Parser {
     return new Identifier(tok.value as string, tok.range);
   }
 
-  private expression(): AstNode {
-    return this.ternary(() => this.primary(true));
+  private expression(allowStructs: boolean = true): AstNode {
+    return this.ternary(() => this.primary(allowStructs));
   }
 
   private ifStatement(): AstNode {
-    const tok = this.match(Tok.If);
-    const;
+    const tok = this.consume(Tok.If);
+    var cond: AstNode | undefined;
+
+    this.consume(Tok.LParen);
+    if (this.check(Tok.Const, Tok.Var)) {
+      // if (const x = expr)
+      cond = this.variable(undefined, true);
+    } else {
+      cond = this.expression(false);
+    }
+    this.consume(Tok.RParen);
+
+    const ifTrue = this.statement();
+
+    var ifFalse: AstNode | undefined;
+    if (this.match(Tok.Else)) ifFalse = this.statement();
+
+    return new IfStatement(
+      cond,
+      ifTrue,
+      ifFalse,
+      Range.extend(tok?.range, ifFalse ? ifFalse.range : ifTrue.range)
+    );
+  }
+
+  private whileStatement(): AstNode {
+    const tok = this.consume(Tok.While);
+    var cond: AstNode | undefined;
+
+    this.consume(Tok.LParen);
+    if (this.check(Tok.Const, Tok.Var)) {
+      // if (const x = expr)
+      cond = this.variable(undefined, true);
+    } else {
+      cond = this.expression(false);
+    }
+    this.consume(Tok.RParen);
+
+    const body = this.statement();
+
+    return new WhileStatement(cond, body, Range.extend(tok?.range, body.range));
+  }
+
+  private forStatement(): AstNode {
+    const tok = this.consume(Tok.For);
+    this.consume(Tok.LParen);
+    const variable = this.variable(undefined, true, true);
+
+    this.consume(Tok.Colon);
+    const range = this.expression(false);
+    this.consume(Tok.RParen);
+
+    const body = this.statement();
+
+    return new ForStatement(
+      variable,
+      range,
+      body,
+      Range.extend(tok.range, body.range)
+    );
+  }
+
+  private deferStatement(): AstNode {
+    const tok = this.consume(Tok.Defer);
+    var body;
+    if (this.check(Tok.LBrace)) body = this.block();
+    else body = this.expression();
+
+    return new DeferStatement(body, Range.extend(tok.range, body.range));
   }
 
   private statement(): AstNode {
     switch (this.peek().id) {
       case Tok.If:
         return this.ifStatement();
+      case Tok.For:
+        return this.forStatement();
+      case Tok.While:
+        return this.whileStatement();
+      case Tok.Defer:
+        return this.deferStatement();
       case Tok.Var:
       case Tok.Const:
         return this.variable();
@@ -815,7 +892,11 @@ export class Parser {
     return attrs;
   }
 
-  private variable(isPublic?: Token): AstNode {
+  private variable(
+    isPublic?: Token,
+    isExpression = false,
+    noInitializer = false
+  ): AstNode {
     const tok = this.match(Tok.Const, Tok.Var);
     if (tok === undefined) {
       this.reportUnexpectedToken("'const' or 'var'", this.advance());
@@ -833,17 +914,24 @@ export class Parser {
     }
 
     var type: AstNode | undefined;
-    if (this.match(Tok.Colon)) type = this.parseType();
+    if (!isExpression && this.match(Tok.Colon)) type = this.parseType();
 
     var init: AstNode | undefined;
-    if (tok?.id === Tok.Const) this.consume(Tok.Assign);
-    if (tok?.id === Tok.Const || this.match(Tok.Assign))
-      init = this.expression();
 
-    this.consume(
-      Tok.Semicolon,
-      `expecting ';', semicolon is required after variable declaration`
-    );
+    if (!noInitializer) {
+      if (tok?.id === Tok.Const) this.consume(Tok.Assign);
+      if (isExpression || tok?.id === Tok.Const || this.match(Tok.Assign))
+        init = this.expression();
+    }
+
+    isExpression ||= noInitializer;
+
+    if (!isExpression) {
+      this.consume(
+        Tok.Semicolon,
+        `expecting ';', semicolon is required after variable declaration`
+      );
+    }
 
     return new VariableDeclaration(
       tok!.id,
@@ -851,7 +939,10 @@ export class Parser {
       type,
       init,
       isPublic !== undefined,
-      Range.extend(tok?.range, this.previous().range)
+      Range.extend(
+        isPublic ? isPublic.range : tok?.range,
+        this.previous().range
+      )
     );
   }
 

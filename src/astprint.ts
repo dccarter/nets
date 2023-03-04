@@ -17,9 +17,11 @@ import {
   CharacterLit,
   ClosureExpression,
   CodeBlock,
+  DeferStatement,
   DotExpression,
   ExpressionStatement,
   FloatLit,
+  ForStatement,
   FunctionDeclaration,
   FunctionParam,
   FunctionParams,
@@ -27,6 +29,7 @@ import {
   GenericTypeParam,
   GroupingExpression,
   Identifier,
+  IfStatement,
   IntegerLit,
   MacroCallExpression,
   MemberAccessExpression,
@@ -47,6 +50,7 @@ import {
   TupleType,
   UnaryExpression,
   VariableDeclaration,
+  WhileStatement,
   YieldExpression,
 } from "./ast";
 import { fmtKeyword, fmtLiteral, fmtReset, fmtString } from "./format";
@@ -236,10 +240,12 @@ export class AstPrinter extends AstVisitor {
   printAstNodeList(
     list: AstNodeList,
     parent?: AstNode,
-    sep: string = ", "
+    sep: string = ", ",
+    indent: boolean = false
   ): void {
     var expr = list.first;
     while (expr) {
+      if (indent) write(this.#indent);
       this.visit(expr, parent);
       expr = expr.next;
       if (expr) write(sep);
@@ -282,7 +288,6 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitVariableDeclaration(node: VariableDeclaration): void {
-    write(this.#indent);
     if (node.isPublic) write(`${fmtKeyword}pub${fmtReset} `);
     write(`${fmtKeyword}${TOKEN_LIST[node.modifier].s}${fmtReset} `);
 
@@ -304,20 +309,18 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitExpressionStatement(node: ExpressionStatement): void {
-    write(this.#indent);
     this.visit(node.expr);
   }
 
   visitCodeBlock(node: CodeBlock): void {
     write("{\n");
     this.#push();
-    this.printAstNodeList(node.nodes, node, "\n");
+    this.printAstNodeList(node.nodes, node, "\n", true);
     this.#pop();
     write("\n", this.#indent, "}");
   }
 
   visitFunctionDeclaration(node: FunctionDeclaration): void {
-    write(this.#indent);
     if (node.isAsync) write(fmtKeyword, "async ", fmtReset);
     write(fmtKeyword, "func", fmtReset);
     write(" ", node.name);
@@ -398,5 +401,40 @@ export class AstPrinter extends AstVisitor {
       this.printAstNodeList(node.values);
       write(")");
     }
+  }
+
+  visitIfStatement(node: IfStatement): void {
+    write(fmtKeyword, "if", fmtReset);
+    write(" (");
+    this.visit(node.cond);
+    write(") ");
+    this.visit(node.ifTrue);
+    if (node.ifFalse) {
+      write(fmtKeyword, "else ", fmtReset);
+      this.visit(node.ifFalse);
+    }
+  }
+
+  visitWhileStatement(node: WhileStatement): void {
+    write(fmtKeyword, "while", fmtReset);
+    write(" (");
+    this.visit(node.cond);
+    write(") ");
+    this.visit(node.body);
+  }
+
+  visitForStatement(node: ForStatement): void {
+    write(fmtKeyword, "for", fmtReset);
+    write(" (");
+    this.visit(node.init);
+    write(" : ");
+    this.visit(node.expr);
+    write(") ");
+    this.visit(node.body);
+  }
+
+  visitDeferStatement(node: DeferStatement): void {
+    write(fmtKeyword, "defer ", fmtReset);
+    this.visit(node.body);
   }
 }
