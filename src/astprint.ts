@@ -19,6 +19,8 @@ import {
   CodeBlock,
   DeferStatement,
   DotExpression,
+  EnumDeclaration,
+  EnumOption,
   ExpressionStatement,
   FloatLit,
   ForStatement,
@@ -48,7 +50,9 @@ import {
   TernaryExpression,
   TupleExpression,
   TupleType,
+  TypeAlias,
   UnaryExpression,
+  UnionDeclaration,
   VariableDeclaration,
   WhileStatement,
   YieldExpression,
@@ -331,6 +335,65 @@ export class AstPrinter extends AstVisitor {
       this.visit(node.body);
     } else {
       write(";");
+    }
+  }
+
+  visitTypeAlias(node: TypeAlias): void {
+    if (node.isPublic) write(fmtKeyword, "pub ", fmtReset);
+    if (node.isOpaque) write(fmtKeyword, "opaque ", fmtReset);
+    write(fmtKeyword, "type ", fmtReset);
+    this.visit(node.name);
+    if (node.params && node.params.count) {
+      write("[");
+      this.printAstNodeList(node.params, node);
+      write("]");
+    }
+    write(" = ");
+    this.visit(node.aliased);
+    write(";");
+  }
+
+  visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): void {
+    if (node.isPublic) write(fmtKeyword, "pub ", fmtReset);
+    if (node.isOpaque) write(fmtKeyword, "opaque ", fmtReset);
+    write(fmtKeyword, "type ", fmtReset);
+    this.visit(node.name);
+    if (node.params && node.params.count) {
+      write("[");
+      this.printAstNodeList(node.params, node);
+      write("]");
+    }
+    write(" = ");
+    this.printAstNodeList(node.members, node, " | ");
+    write(";");
+  }
+
+  visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): void {
+    if (node.isPublic) write(fmtKeyword, "pub ", fmtReset);
+    if (node.isOpaque) write(fmtKeyword, "opaque ", fmtReset);
+    write(fmtKeyword, "enum ", fmtReset);
+    this.visit(node.name);
+    if (node.base) {
+      write(": ");
+      this.visit(node.base);
+    }
+    write(" {\n");
+    this.#push();
+    this.printAstNodeList(node.options, node, ",\n", true);
+    this.#pop();
+    write("\n}");
+  }
+
+  visitEnumOption(node: EnumOption): void {
+    if (node.attrs && node.attrs.count) {
+      write("@[");
+      this.printAstNodeList(node.attrs, node, ", ");
+      write("]\n", this.#indent);
+    }
+    this.visit(node.name);
+    if (node.value) {
+      write(" = ");
+      this.visit(node.value);
     }
   }
 

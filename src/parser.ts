@@ -16,6 +16,8 @@ import {
   CodeBlock,
   Declaration,
   DeferStatement,
+  EnumDeclaration,
+  EnumOption,
   ExpressionStatement,
   FloatLit,
   ForStatement,
@@ -45,7 +47,9 @@ import {
   TernaryExpression,
   TupleExpression,
   TupleType,
+  TypeAlias,
   UnaryExpression,
+  UnionDeclaration,
   VariableDeclaration,
   WhileStatement,
 } from "./ast";
@@ -867,7 +871,7 @@ export class Parser {
 
         this.match(Tok.Comma);
       }
-      this.consume(Tok.LParen);
+      this.consume(Tok.RParen);
     }
 
     return new Attribute(
@@ -880,7 +884,7 @@ export class Parser {
   private attributes(): AstNodeList {
     const tok = this.consume(Tok.At);
     var attrs: AstNodeList;
-    if (this.check(Tok.LBracket)) {
+    if (this.match(Tok.LBracket)) {
       attrs = this.many(Tok.RBracket, Tok.Comma, () => this.attribute());
       this.consume(Tok.RBracket);
     } else {
@@ -1001,8 +1005,96 @@ export class Parser {
     );
   }
 
+  private aliasDecl(isPublic?: Token, isOpaque?: Token): AstNode {
+    const tok = this.consume(Tok.Type);
+
+    const name = this.identifier();
+    const params = this.genericTypeParams();
+
+    this.consume(Tok.Assign);
+
+    const members = this.oneOrMore(
+      "type parameter",
+      Tok.Semicolon,
+      Tok.BOr,
+      () => this.parseType()
+    );
+    this.consume(Tok.Semicolon);
+
+    if (members.count == 1) {
+      return new TypeAlias(
+        name,
+        members.first!,
+        params,
+        isPublic !== undefined,
+        isOpaque !== undefined,
+        Range.extend(tok.range, this.previous().range)
+      );
+    } else {
+      return new UnionDeclaration(
+        name,
+        members,
+        params,
+        isPublic !== undefined,
+        isOpaque !== undefined,
+        Range.extend(tok.range, this.previous().range)
+      );
+    }
+  }
+
+  private enumOption(): AstNode {
+    const tok = this.peek();
+
+    var attrs: AstNodeList | undefined = undefined;
+    if (this.check(Tok.At)) attrs = this.attributes();
+
+    const name = this.identifier();
+
+    var value: AstNode | undefined;
+    if (this.match(Tok.Assign)) {
+      value = this.expression(false);
+    }
+
+    return new EnumOption(
+      name,
+      value,
+      attrs,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
+  private enumDecl(isPublic?: Token, isOpaque?: Token): AstNode {
+    const tok = this.consume(Tok.Enum);
+
+    const name = this.identifier();
+
+    var base: AstNode | undefined;
+    if (this.match(Tok.Colon)) {
+      base = this.parseType();
+    }
+
+    this.consume(Tok.LBrace);
+    const options = this.oneOrMore("enum member", Tok.RBrace, Tok.Comma, () =>
+      this.enumOption()
+    );
+    this.consume(Tok.RBrace);
+
+    return new EnumDeclaration(
+      name,
+      options,
+      base,
+      isPublic !== undefined,
+      isOpaque !== undefined,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
   private delarationWithoutAttrs(isPublic?: Token, isOpaque?: Token): AstNode {
     switch (this.peek().id) {
+      case Tok.Enum:
+        return this.enumDecl(isPublic, isOpaque);
+      case Tok.Type:
+        return this.aliasDecl(isPublic, isOpaque);
       case Tok.Var:
       case Tok.Const:
         return this.variable(isPublic);

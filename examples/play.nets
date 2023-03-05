@@ -2,19 +2,7 @@
  * Development playgroud for nets
  */
 
-async func hello() = "Hello"
-// 
-func main(...args: string[]) {
-    defer file.close();
-    println!("Hello")
-    if (const x = hello()) {
-        console.log(x)
-    }
-    
-    while (const x = iterator.next())
-        console.log("stuff")
-
-    for (var x : range(0, 10)) {
-        
-    }
+enum Commands : u8 {
+    @[name(id: 10)]
+    Create, Delete = Commands.Create
 }
