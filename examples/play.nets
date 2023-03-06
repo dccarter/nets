@@ -6,3 +6,17 @@ enum Commands : u8 {
     @[name(id: 10)]
     Create, Delete = Commands.Create
 }
+
+struct User (i32, string);
+struct Create {
+    name: string = "Hello Megan",
+    value: i32 = 10
+}
+
+struct Person[T] : User {
+    info: T
+}
+
+func hello[T](me: Person[T]) {
+    println(`Hello ${me.name}`)
+}

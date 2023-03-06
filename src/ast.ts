@@ -41,6 +41,8 @@ export enum Ast {
   TypeAlias,
   EnumDecl,
   EnumOption,
+  StructDecl,
+  StructField,
   ExpressionStmt,
   TupleType,
   ArrayType,
@@ -569,6 +571,8 @@ export class ClosureExpression extends AstNode {
 export class Declaration extends AstNode {
   constructor(
     public readonly id: Ast,
+    public readonly isPublic?: boolean,
+    public readonly isOpaque?: boolean,
     range?: Range,
     public attrs?: AstNodeList
   ) {
@@ -586,7 +590,7 @@ export class VariableDeclaration extends Declaration {
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.VariableDecl, range, attrs);
+    super(Ast.VariableDecl, isPublic, false, range, attrs);
   }
 
   clone(): AstNode {
@@ -613,7 +617,7 @@ export class FunctionDeclaration extends Declaration {
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.FuncDecl, range, attrs);
+    super(Ast.FuncDecl, isPublic, false, range, attrs);
   }
 
   clone(): AstNode {
@@ -640,7 +644,7 @@ export class TypeAlias extends Declaration {
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.TypeAlias, range, attrs);
+    super(Ast.TypeAlias, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -666,7 +670,7 @@ export class UnionDeclaration extends Declaration {
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.UnionDecl, range, attrs);
+    super(Ast.UnionDecl, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -712,7 +716,7 @@ export class EnumDeclaration extends Declaration {
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.EnumDecl, range, attrs);
+    super(Ast.EnumDecl, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -720,6 +724,57 @@ export class EnumDeclaration extends Declaration {
       this.name,
       this.options.clone(),
       this.base?.clone(),
+      this.isPublic,
+      this.isOpaque,
+      this.range,
+      this.attrs?.clone()
+    );
+  }
+}
+
+export class StructField extends AstNode {
+  constructor(
+    public readonly name: AstNode,
+    public readonly type: AstNode,
+    public readonly value?: AstNode,
+    public readonly attrs?: AstNodeList,
+    range?: Range
+  ) {
+    super(Ast.StructField, range);
+  }
+
+  clone(): AstNode {
+    return new EnumOption(
+      this.name,
+      this.value,
+      this.attrs?.clone(),
+      this.range
+    );
+  }
+}
+
+export class StructDeclaration extends Declaration {
+  constructor(
+    public readonly name: AstNode,
+    public readonly fields?: AstNodeList,
+    public readonly params?: AstNodeList,
+    public readonly base?: AstNode,
+    public readonly isTupleLike?: boolean,
+    public readonly isPublic?: boolean,
+    public readonly isOpaque?: boolean,
+    range?: Range,
+    attrs?: AstNodeList
+  ) {
+    super(Ast.StructDecl, isPublic, isOpaque, range, attrs);
+  }
+
+  clone(): AstNode {
+    return new StructDeclaration(
+      this.name,
+      this.fields?.clone(),
+      this.params?.clone(),
+      this.base?.clone(),
+      this.isTupleLike,
       this.isPublic,
       this.isOpaque,
       this.range,
@@ -1022,6 +1077,10 @@ export abstract class AstVisitor<T = void> {
       this.visitEnumDeclaration(<EnumDeclaration>curr, parent),
     [Ast.EnumOption]: (curr: AstNode, parent?: AstNode) =>
       this.visitEnumOption(<EnumOption>curr, parent),
+    [Ast.StructDecl]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStructDeclaration(<StructDeclaration>curr, parent),
+    [Ast.StructField]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStructField(<StructField>curr, parent),
     [Ast.ExpressionStmt]: (curr: AstNode, parent?: AstNode) =>
       this.visitExpressionStatement(<ExpressionStatement>curr, parent),
     [Ast.Block]: (curr: AstNode, parent?: AstNode) =>
@@ -1116,6 +1175,8 @@ export abstract class AstVisitor<T = void> {
   visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): T | void {}
   visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): T | void {}
   visitEnumOption(node: EnumOption, parent?: AstNode): T | void {}
+  visitStructDeclaration(node: StructDeclaration, parent?: AstNode): T | void {}
+  visitStructField(node: StructField, parent?: AstNode): T | void {}
   visitExpressionStatement(
     node: ExpressionStatement,
     parent?: AstNode

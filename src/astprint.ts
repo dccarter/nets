@@ -17,6 +17,7 @@ import {
   CharacterLit,
   ClosureExpression,
   CodeBlock,
+  Declaration,
   DeferStatement,
   DotExpression,
   EnumDeclaration,
@@ -45,7 +46,9 @@ import {
   SpreadExpression,
   StringExpression,
   StringLit,
+  StructDeclaration,
   StructExpression,
+  StructField,
   StructFieldExpression,
   TernaryExpression,
   TupleExpression,
@@ -75,6 +78,35 @@ export class AstPrinter extends AstVisitor {
   #pop() {
     assert(this.#indent.length !== 0);
     return (this.#indent = " ".repeat(this.#indent.length - 2));
+  }
+
+  private printAstNodeList(
+    list: AstNodeList,
+    parent?: AstNode,
+    sep: string = ", ",
+    indent: boolean = false
+  ): void {
+    var expr = list.first;
+    while (expr) {
+      if (indent) write(this.#indent);
+      this.visit(expr, parent);
+      expr = expr.next;
+      if (expr) write(sep);
+    }
+  }
+
+  private visitDeclaration(decl: Declaration) {
+    if (decl.attrs && decl.attrs.count) {
+      write("@[");
+      this.printAstNodeList(decl.attrs);
+      write("]\n");
+      write(this.#indent);
+    }
+
+    if (decl.isOpaque || decl.isPublic) {
+      if (decl.isOpaque) write(fmtKeyword, "pub ");
+      if (decl.isPublic) write(fmtKeyword, "opaque ");
+    }
   }
 
   visitProgram(node: Program): void {
@@ -241,21 +273,6 @@ export class AstPrinter extends AstVisitor {
     this.visit(node.member);
   }
 
-  printAstNodeList(
-    list: AstNodeList,
-    parent?: AstNode,
-    sep: string = ", ",
-    indent: boolean = false
-  ): void {
-    var expr = list.first;
-    while (expr) {
-      if (indent) write(this.#indent);
-      this.visit(expr, parent);
-      expr = expr.next;
-      if (expr) write(sep);
-    }
-  }
-
   visitTupleExpression(node: TupleExpression): void {
     write("(");
     this.printAstNodeList(node.elements);
@@ -292,7 +309,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitVariableDeclaration(node: VariableDeclaration): void {
-    if (node.isPublic) write(`${fmtKeyword}pub${fmtReset} `);
+    this.visitDeclaration(<Declaration>node);
     write(`${fmtKeyword}${TOKEN_LIST[node.modifier].s}${fmtReset} `);
 
     if (node.variable.count === 1) this.visit(node.variable.first!);
@@ -325,6 +342,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitFunctionDeclaration(node: FunctionDeclaration): void {
+    this.visitDeclaration(<Declaration>node);
     if (node.isAsync) write(fmtKeyword, "async ", fmtReset);
     write(fmtKeyword, "func", fmtReset);
     write(" ", node.name);
@@ -339,8 +357,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitTypeAlias(node: TypeAlias): void {
-    if (node.isPublic) write(fmtKeyword, "pub ", fmtReset);
-    if (node.isOpaque) write(fmtKeyword, "opaque ", fmtReset);
+    this.visitDeclaration(<Declaration>node);
     write(fmtKeyword, "type ", fmtReset);
     this.visit(node.name);
     if (node.params && node.params.count) {
@@ -354,8 +371,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): void {
-    if (node.isPublic) write(fmtKeyword, "pub ", fmtReset);
-    if (node.isOpaque) write(fmtKeyword, "opaque ", fmtReset);
+    this.visitDeclaration(<Declaration>node);
     write(fmtKeyword, "type ", fmtReset);
     this.visit(node.name);
     if (node.params && node.params.count) {
@@ -369,8 +385,7 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): void {
-    if (node.isPublic) write(fmtKeyword, "pub ", fmtReset);
-    if (node.isOpaque) write(fmtKeyword, "opaque ", fmtReset);
+    this.visitDeclaration(<Declaration>node);
     write(fmtKeyword, "enum ", fmtReset);
     this.visit(node.name);
     if (node.base) {
@@ -391,6 +406,50 @@ export class AstPrinter extends AstVisitor {
       write("]\n", this.#indent);
     }
     this.visit(node.name);
+    if (node.value) {
+      write(" = ");
+      this.visit(node.value);
+    }
+  }
+
+  visitStructDeclaration(node: StructDeclaration): void {
+    this.visitDeclaration(<Declaration>node);
+    write(fmtKeyword, "struct ", fmtReset);
+    this.visit(node.name);
+    if (node.params && node.params.count) {
+      write("[");
+      this.printAstNodeList(node.params, node);
+      write("]");
+    }
+    if (node.base) {
+      write(": ");
+      this.visit(node.base);
+      write(" ");
+    }
+
+    if (node.isTupleLike) {
+      write("(");
+      if (node.fields) this.printAstNodeList(node.fields, node, ", ");
+      write(");");
+    } else {
+      write("{\n");
+      this.#push();
+      if (node.fields) this.printAstNodeList(node.fields, node, ",\n", true);
+      this.#pop();
+      write("\n");
+      write(this.#indent, "}");
+    }
+  }
+
+  visitStructField(node: StructField): void {
+    if (node.attrs && node.attrs.count === 1) {
+      write("@[");
+      this.printAstNodeList(node.attrs, node, ", ");
+      write("]\n", this.#indent);
+    }
+    this.visit(node.name);
+    write(": ");
+    this.visit(node.type);
     if (node.value) {
       write(" = ");
       this.visit(node.value);

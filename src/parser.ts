@@ -42,7 +42,9 @@ import {
   SignatureExpression,
   StringExpression,
   StringLit,
+  StructDeclaration,
   StructExpression,
+  StructField,
   StructFieldExpression,
   TernaryExpression,
   TupleExpression,
@@ -1089,8 +1091,74 @@ export class Parser {
     );
   }
 
+  private fieldDecl(): AstNode {
+    const tok = this.peek();
+
+    var attrs: AstNodeList | undefined;
+    if (this.check(Tok.At)) attrs = this.attributes();
+
+    const name = this.identifier();
+    this.consume(Tok.Colon);
+    const type = this.parseType();
+
+    var value: AstNode | undefined;
+    if (this.match(Tok.Assign)) value = this.expression();
+
+    return new StructField(
+      name,
+      type,
+      value,
+      attrs,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
+  private structDecl(isPublic?: Token, isOpaque?: Token): AstNode {
+    const tok = this.consume(Tok.Struct);
+
+    const name = this.identifier();
+    const params = this.genericTypeParams();
+
+    var base: AstNode | undefined;
+    if (this.match(Tok.Colon)) {
+      base = this.parseType();
+    }
+
+    var isTupleLike = false;
+    var fields: AstNodeList | undefined = undefined;
+    if (this.match(Tok.LBrace)) {
+      fields = this.many(Tok.RBrace, Tok.Comma, () => this.fieldDecl());
+      this.consume(Tok.RBrace);
+    } else {
+      isTupleLike = true;
+      if (base === undefined && this.match(Tok.LParen)) {
+        fields = this.oneOrMore(
+          "struct field types",
+          Tok.RParen,
+          Tok.Comma,
+          () => this.parseType()
+        );
+        this.consume(Tok.RParen);
+      }
+      this.consume(Tok.Semicolon);
+    }
+
+    return new StructDeclaration(
+      name,
+      fields,
+      params,
+      base,
+      isTupleLike,
+      isPublic !== undefined,
+      isOpaque !== undefined,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
   private delarationWithoutAttrs(isPublic?: Token, isOpaque?: Token): AstNode {
     switch (this.peek().id) {
+      case Tok.Struct:
+        return this.structDecl(isPublic, isOpaque);
       case Tok.Enum:
         return this.enumDecl(isPublic, isOpaque);
       case Tok.Type:
