@@ -8,6 +8,4 @@ struct User {
 }
 
 func main() {
-    var x;
-    return User{age: 20, name: "Carter"};
 }
