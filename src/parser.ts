@@ -1268,7 +1268,6 @@ export class Parser {
   parse(): Program {
     const program = new Program();
     while (!this.Eof()) {
-      this.dumpTokenState();
       this.synchronized(() => {
         program.add(this.declaration());
       });

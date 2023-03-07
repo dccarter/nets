@@ -295,7 +295,6 @@ export class Lexer {
           }
 
           if (isDigit(this.getChar())) {
-            console.log("Here");
             return this.finishParsingNumber(true, p);
           }
           return new Token(Tok.Dot, this.range(p));

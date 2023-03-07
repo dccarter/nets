@@ -1,3 +1,5 @@
+import { List, ListItem } from "./list";
+
 export enum TTag {
   Void,
   Bool,
@@ -44,8 +46,10 @@ export const TYPE_TAGS: { [Tag in TTag]: { [key: string]: any } } = {
   [TTag.Func]: { s: "func" },
 };
 
-export class Type {
-  constructor(public readonly tag: TTag) {}
+export class Type extends ListItem {
+  constructor(public readonly tag: TTag) {
+    super();
+  }
 
   isPrimitive(): boolean {
     return TYPE_TAGS[this.tag].primitive || false;
@@ -56,18 +60,72 @@ export class Type {
   }
 }
 
-class AliasType extends Type {}
-class TupleType extends Type {}
-class StructType extends Type {}
-class EnumType extends Type {}
-class FunctionType extends Type {}
+export class TypeList extends List<Type> {}
+
+export class AliasType extends Type {
+  constructor(public aliasedType: Type) {
+    super(TTag.Alias);
+  }
+}
+
+export class TupleType extends Type {
+  constructor(public readonly members: TypeList) {
+    super(TTag.Tuple);
+  }
+}
+
+class StructField extends ListItem {
+  constructor(public readonly name: string, public readonly type: Type) {
+    super();
+  }
+}
+
+class StructType extends Type {
+  constructor(
+    public readonly name: string,
+    public readonly fields: List<StructField>,
+    public readonly base?: Type
+  ) {
+    super(TTag.Struct);
+  }
+}
+
+class EnumOption extends ListItem {
+  constructor(public readonly name: string, public readonly value: number) {
+    super();
+  }
+}
+
+class EnumType extends Type {
+  constructor(
+    public readonly name: string,
+    public readonly options: List<EnumOption>,
+    public readonly base?: Type
+  ) {
+    super(TTag.Enum);
+  }
+}
+
+class FunctionParam extends ListItem {
+  constructor(
+    public readonly name: string,
+    public readonly type: Type,
+    public readonly isVariadic?: boolean
+  ) {
+    super();
+  }
+}
+
+export class FunctionType extends Type {
+  constructor();
+}
 
 export class TypingContext {
   resolve(type: Type): Type {
     while (true) {
       if (type.tag == TTag.Alias) {
-        type = <AliasType>type;
-      }
+        type = (<AliasType>type).aliasedType;
+      } else break;
     }
     return type;
   }

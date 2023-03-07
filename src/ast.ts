@@ -1,3 +1,4 @@
+import { List, ListItem } from "./list";
 import { Range } from "./source";
 import { Tok } from "./token";
 
@@ -68,11 +69,12 @@ export interface Operation {
   range?: Range;
 }
 
-export class AstNode {
-  public next?: AstNode = undefined;
+export class AstNode extends ListItem {
   public parent?: AstNode = undefined;
 
-  constructor(public readonly id: Ast, public range?: Range) {}
+  constructor(public readonly id: Ast, public range?: Range) {
+    super();
+  }
 
   clone(): AstNode {
     return new AstNode(this.id, this.range);
@@ -83,39 +85,7 @@ export class AstNode {
   }
 }
 
-export class AstNodeList {
-  first?: AstNode = undefined;
-  last?: AstNode = undefined;
-  count: number = 0;
-
-  add(node: AstNode) {
-    if (!this.first) {
-      this.first = node;
-    } else if (this.last) {
-      this.last.next = node;
-    }
-    this.last = node;
-    this.count++;
-  }
-
-  clone(): AstNodeList {
-    const copy = new AstNodeList();
-    var node = this.first;
-    while (node) {
-      copy.add(node.clone());
-      node = node.next;
-    }
-    return copy;
-  }
-
-  each(func: (node: AstNode) => true | undefined) {
-    var node = this.first;
-    while (node) {
-      if (func(node)) break;
-      node = node.next;
-    }
-  }
-}
+export class AstNodeList extends List<AstNode> {}
 
 export class Program extends AstNode {
   constructor(public readonly nodes: AstNodeList = new AstNodeList()) {
