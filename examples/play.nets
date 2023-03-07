@@ -9,5 +9,5 @@ struct User {
 
 func main() {
     var x;
-    const b = (x : u32)
+    return User{age: 20, name: "Carter"};
 }

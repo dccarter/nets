@@ -32,6 +32,7 @@ export enum Ast {
   StructExpr,
   ArrayExpr,
   StructFieldExpr,
+  TypedExpr,
   Signature,
   ClosureExpr,
   Block,
@@ -57,6 +58,9 @@ export enum Ast {
   WhileStmt,
   ForStmt,
   DeferStmt,
+  ReturnStmt,
+  ContinueStmt,
+  BreakStmt,
 }
 
 export interface Operation {
@@ -568,6 +572,17 @@ export class ClosureExpression extends AstNode {
     );
   }
 }
+
+export class TypedExpression extends AstNode {
+  constructor(public expr: AstNode, public type: AstNode, range?: Range) {
+    super(Ast.TypedExpr, range);
+  }
+
+  clone(): AstNode {
+    return new TypedExpression(this.expr.clone(), this.type.clone());
+  }
+}
+
 export class Declaration extends AstNode {
   constructor(
     public readonly id: Ast,
@@ -994,6 +1009,16 @@ export class DeferStatement extends AstNode {
   }
 }
 
+export class ReturnStatement extends AstNode {
+  constructor(public readonly value?: AstNode, range?: Range) {
+    super(Ast.ReturnStmt, range);
+  }
+
+  clone(): AstNode {
+    return new ReturnStatement(this.value?.clone(), this.range);
+  }
+}
+
 export abstract class AstVisitor<T = void> {
   dispatch: {
     [TNode in Ast as AstNode["id"]]: (
@@ -1065,6 +1090,8 @@ export abstract class AstVisitor<T = void> {
       this.visitSignatureExpression(<SignatureExpression>curr, parent),
     [Ast.ClosureExpr]: (curr: AstNode, parent?: AstNode) =>
       this.visitClosureExpression(<ClosureExpression>curr, parent),
+    [Ast.TypedExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitTypedExpression(<TypedExpression>curr, parent),
     [Ast.VariableDecl]: (curr: AstNode, parent?: AstNode) =>
       this.visitVariableDeclaration(<VariableDeclaration>curr, parent),
     [Ast.FuncDecl]: (curr: AstNode, parent?: AstNode) =>
@@ -1111,6 +1138,12 @@ export abstract class AstVisitor<T = void> {
       this.visitForStatement(<ForStatement>curr, parent),
     [Ast.DeferStmt]: (curr: AstNode, parent?: AstNode) =>
       this.visitDeferStatement(<DeferStatement>curr, parent),
+    [Ast.ReturnStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitReturnStatement(<ReturnStatement>curr, parent),
+    [Ast.ContinueStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitContinueStatement(<AstNode>curr, parent),
+    [Ast.BreakStmt]: (curr: AstNode, parent?: AstNode) =>
+      this.visitContinueStatement(<AstNode>curr, parent),
   };
 
   visit(node: AstNode, parent?: AstNode): T | void {
@@ -1163,6 +1196,7 @@ export abstract class AstVisitor<T = void> {
     parent?: AstNode
   ): T | void {}
   visitClosureExpression(node: ClosureExpression, parent?: AstNode): T | void {}
+  visitTypedExpression(node: TypedExpression, parent?: AstNode): T | void {}
   visitVariableDeclaration(
     node: VariableDeclaration,
     parent?: AstNode
@@ -1199,6 +1233,9 @@ export abstract class AstVisitor<T = void> {
   visitWhileStatement(node: WhileStatement, parent?: AstNode): T | void {}
   visitForStatement(node: ForStatement, parent?: AstNode): T | void {}
   visitDeferStatement(node: DeferStatement, parent?: AstNode): T | void {}
+  visitReturnStatement(node: ReturnStatement, parent?: AstNode): T | void {}
+  visitContinueStatement(node: AstNode, parent?: AstNode): T | void {}
+  visitBreakStatement(node: AstNode, parent?: AstNode): T | void {}
 }
 
 export function isValueDeclaration(id: Ast): boolean {

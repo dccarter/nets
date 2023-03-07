@@ -42,6 +42,7 @@ import {
   PrefixExpression,
   PrimitiveType,
   Program,
+  ReturnStatement,
   SignatureExpression,
   SpreadExpression,
   StringExpression,
@@ -54,6 +55,7 @@ import {
   TupleExpression,
   TupleType,
   TypeAlias,
+  TypedExpression,
   UnaryExpression,
   UnionDeclaration,
   VariableDeclaration,
@@ -308,6 +310,12 @@ export class AstPrinter extends AstVisitor {
     this.visit(node.body);
   }
 
+  visitTypedExpression(node: TypedExpression): void {
+    this.visit(node.expr);
+    write(" : ");
+    this.visit(node.type);
+  }
+
   visitVariableDeclaration(node: VariableDeclaration): void {
     this.visitDeclaration(<Declaration>node);
     write(`${fmtKeyword}${TOKEN_LIST[node.modifier].s}${fmtReset} `);
@@ -414,25 +422,24 @@ export class AstPrinter extends AstVisitor {
 
   visitStructDeclaration(node: StructDeclaration): void {
     this.visitDeclaration(<Declaration>node);
-    write(fmtKeyword, "struct ", fmtReset);
+    write(fmtKeyword, "struct", fmtReset);
     this.visit(node.name);
     if (node.params && node.params.count) {
-      write("[");
+      write(" [");
       this.printAstNodeList(node.params, node);
       write("]");
     }
     if (node.base) {
-      write(": ");
+      write(" : ");
       this.visit(node.base);
-      write(" ");
     }
 
     if (node.isTupleLike) {
-      write("(");
+      write(" (");
       if (node.fields) this.printAstNodeList(node.fields, node, ", ");
       write(");");
     } else {
-      write("{\n");
+      write(" {\n");
       this.#push();
       if (node.fields) this.printAstNodeList(node.fields, node, ",\n", true);
       this.#pop();
@@ -558,5 +565,22 @@ export class AstPrinter extends AstVisitor {
   visitDeferStatement(node: DeferStatement): void {
     write(fmtKeyword, "defer ", fmtReset);
     this.visit(node.body);
+  }
+
+  visitReturnStatement(node: ReturnStatement): void {
+    write(fmtKeyword, "return", fmtReset);
+    if (node.value) {
+      write(" ");
+      this.visit(node.value);
+    }
+    write(";");
+  }
+
+  visitContinueStatement(node: AstNode): void {
+    write(fmtKeyword, "continue", fmtReset, ";");
+  }
+
+  visitBreakStatement(node: AstNode): void {
+    write(fmtKeyword, "break", fmtReset, ";");
   }
 }

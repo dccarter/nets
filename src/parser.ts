@@ -39,6 +39,7 @@ import {
   PrefixExpression,
   PrimitiveType,
   Program,
+  ReturnStatement,
   SignatureExpression,
   StringExpression,
   StringLit,
@@ -50,7 +51,7 @@ import {
   TupleExpression,
   TupleType,
   TypeAlias,
-  UnaryExpression,
+  TypedExpression,
   UnionDeclaration,
   VariableDeclaration,
   WhileStatement,
@@ -200,7 +201,17 @@ export class Parser {
   }
 
   private expression(allowStructs: boolean = true): AstNode {
-    return this.ternary(() => this.primary(allowStructs));
+    const expr = this.ternary(() => this.primary(allowStructs));
+    if (this.match(Tok.Colon)) {
+      const type = this.parseType();
+      return new TypedExpression(
+        expr,
+        type,
+        Range.extend(expr.range, type.range)
+      );
+    }
+
+    return expr;
   }
 
   private ifStatement(): AstNode {
@@ -275,6 +286,40 @@ export class Parser {
     return new DeferStatement(body, Range.extend(tok.range, body.range));
   }
 
+  private returnStatement(): AstNode {
+    const tok = this.consume(Tok.Return);
+    var value: AstNode | undefined;
+    if (!this.check(Tok.Semicolon)) {
+      value = this.expression();
+    }
+    this.consume(Tok.Semicolon);
+
+    return new ReturnStatement(
+      value,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
+  private continueStatement(): AstNode {
+    const tok = this.consume(Tok.Continue);
+    this.consume(Tok.Semicolon);
+
+    return new AstNode(
+      Ast.ContinueStmt,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
+  private breakStatement(): AstNode {
+    const tok = this.consume(Tok.Break);
+    this.consume(Tok.Semicolon);
+
+    return new AstNode(
+      Ast.BreakStmt,
+      Range.extend(tok.range, this.previous().range)
+    );
+  }
+
   private statement(): AstNode {
     switch (this.peek().id) {
       case Tok.If:
@@ -285,6 +330,12 @@ export class Parser {
         return this.whileStatement();
       case Tok.Defer:
         return this.deferStatement();
+      case Tok.Break:
+
+      case Tok.Return:
+        return this.returnStatement();
+      case Tok.Continue:
+        return this.continueStatement();
       case Tok.Var:
       case Tok.Const:
         return this.variable();
