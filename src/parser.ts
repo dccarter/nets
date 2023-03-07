@@ -899,7 +899,7 @@ export class Parser {
   }
 
   private variable(
-    isPublic?: Token,
+    isExport?: Token,
     isExpression = false,
     noInitializer = false
   ): AstNode {
@@ -944,9 +944,9 @@ export class Parser {
       names,
       type,
       init,
-      isPublic !== undefined,
+      isExport !== undefined,
       Range.extend(
-        isPublic ? isPublic.range : tok?.range,
+        isExport ? isExport.range : tok?.range,
         this.previous().range
       )
     );
@@ -967,7 +967,7 @@ export class Parser {
     );
   }
 
-  private funcDecl(isPublic?: Token): AstNode {
+  private funcDecl(isExport?: Token): AstNode {
     const tok = this.peek();
     const isAsync = this.match(Tok.Async);
     this.consume(Tok.Func);
@@ -1002,12 +1002,12 @@ export class Parser {
       body,
       isAsync !== undefined,
       genericParams,
-      isPublic !== undefined,
+      isExport !== undefined,
       Range.extend(tok.range, this.previous().range)
     );
   }
 
-  private aliasDecl(isPublic?: Token, isOpaque?: Token): AstNode {
+  private aliasDecl(isExport?: Token, isOpaque?: Token): AstNode {
     const tok = this.consume(Tok.Type);
 
     const name = this.identifier();
@@ -1028,7 +1028,7 @@ export class Parser {
         name,
         members.first!,
         params,
-        isPublic !== undefined,
+        isExport !== undefined,
         isOpaque !== undefined,
         Range.extend(tok.range, this.previous().range)
       );
@@ -1037,7 +1037,7 @@ export class Parser {
         name,
         members,
         params,
-        isPublic !== undefined,
+        isExport !== undefined,
         isOpaque !== undefined,
         Range.extend(tok.range, this.previous().range)
       );
@@ -1065,7 +1065,7 @@ export class Parser {
     );
   }
 
-  private enumDecl(isPublic?: Token, isOpaque?: Token): AstNode {
+  private enumDecl(isExport?: Token, isOpaque?: Token): AstNode {
     const tok = this.consume(Tok.Enum);
 
     const name = this.identifier();
@@ -1085,7 +1085,7 @@ export class Parser {
       name,
       options,
       base,
-      isPublic !== undefined,
+      isExport !== undefined,
       isOpaque !== undefined,
       Range.extend(tok.range, this.previous().range)
     );
@@ -1113,7 +1113,7 @@ export class Parser {
     );
   }
 
-  private structDecl(isPublic?: Token, isOpaque?: Token): AstNode {
+  private structDecl(isExport?: Token, isOpaque?: Token): AstNode {
     const tok = this.consume(Tok.Struct);
 
     const name = this.identifier();
@@ -1149,26 +1149,26 @@ export class Parser {
       params,
       base,
       isTupleLike,
-      isPublic !== undefined,
+      isExport !== undefined,
       isOpaque !== undefined,
       Range.extend(tok.range, this.previous().range)
     );
   }
 
-  private delarationWithoutAttrs(isPublic?: Token, isOpaque?: Token): AstNode {
+  private delarationWithoutAttrs(isExport?: Token, isOpaque?: Token): AstNode {
     switch (this.peek().id) {
       case Tok.Struct:
-        return this.structDecl(isPublic, isOpaque);
+        return this.structDecl(isExport, isOpaque);
       case Tok.Enum:
-        return this.enumDecl(isPublic, isOpaque);
+        return this.enumDecl(isExport, isOpaque);
       case Tok.Type:
-        return this.aliasDecl(isPublic, isOpaque);
+        return this.aliasDecl(isExport, isOpaque);
       case Tok.Var:
       case Tok.Const:
-        return this.variable(isPublic);
+        return this.variable(isExport);
       case Tok.Async:
       case Tok.Func:
-        return this.funcDecl(isPublic);
+        return this.funcDecl(isExport);
       default:
         this.reportUnexpectedToken("a declaration");
     }
@@ -1179,11 +1179,11 @@ export class Parser {
   private declaration() {
     var attrs: AstNodeList | undefined = undefined;
     if (this.check(Tok.At)) attrs = this.attributes();
-    const isPublic = this.match(Tok.Public);
-    const isOpaque: Token | undefined = isPublic
+    const isExport = this.match(Tok.Export);
+    const isOpaque: Token | undefined = isExport
       ? this.match(Tok.Opaque)
       : undefined;
-    const decl = this.delarationWithoutAttrs(isPublic, isOpaque);
+    const decl = this.delarationWithoutAttrs(isExport, isOpaque);
     if (isOpaque && isValueDeclaration(decl.id)) {
       this.error(
         "cannot use `opaque` keyword with this declaration",

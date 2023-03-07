@@ -103,9 +103,9 @@ export class AstPrinter extends AstVisitor {
       write(this.#indent);
     }
 
-    if (decl.isOpaque || decl.isPublic) {
-      if (decl.isOpaque) write(fmtKeyword, "pub ");
-      if (decl.isPublic) write(fmtKeyword, "opaque ");
+    if (decl.isOpaque || decl.isExport) {
+      if (decl.isExport) write(fmtKeyword, "export ");
+      if (decl.isOpaque) write(fmtKeyword, "opaque ");
     }
   }
 
@@ -532,7 +532,7 @@ export class AstPrinter extends AstVisitor {
     write(") ");
     this.visit(node.ifTrue);
     if (node.ifFalse) {
-      write(fmtKeyword, "else ", fmtReset);
+      write(fmtKeyword, " else ", fmtReset);
       this.visit(node.ifFalse);
     }
   }
