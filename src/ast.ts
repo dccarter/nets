@@ -1,5 +1,6 @@
 import { List, ListItem } from "./list";
 import { Range } from "./source";
+import { Symbol } from "./symbol";
 import { Tok } from "./token";
 
 export enum Ast {
@@ -71,6 +72,7 @@ export interface Operation {
 
 export class AstNode extends ListItem {
   public parent?: AstNode = undefined;
+  public symbol?: Symbol = undefined;
 
   constructor(public readonly id: Ast, public range?: Range) {
     super();
