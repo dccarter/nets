@@ -3,6 +3,7 @@ import { getIntegerSize } from "./utils";
 
 export enum TTag {
   Unknown,
+  Variant,
   Void,
   Bool,
   Byte,
@@ -29,6 +30,7 @@ export enum TTag {
 
 export const TYPE_TAGS: { [Tag in TTag]: { [key: string]: any } } = {
   [TTag.Unknown]: { s: "unknown" },
+  [TTag.Variant]: { s: "unknown" },
   [TTag.Void]: { s: "void", primitive: true, size: 0 },
   [TTag.Bool]: { s: "bool", primitive: true, size: 1 },
   [TTag.Byte]: { s: "byte", primitive: true, size: 1, signed: true },
@@ -54,7 +56,7 @@ export const TYPE_TAGS: { [Tag in TTag]: { [key: string]: any } } = {
 };
 
 export class Type {
-  constructor(public readonly tag: TTag) {}
+  constructor(public readonly tag: TTag, public readonly id: number) {}
 
   isPrimitive(): boolean {
     return TYPE_TAGS[this.tag].primitive || false;
@@ -102,8 +104,12 @@ export class Type {
 }
 
 export class AliasType extends Type {
-  constructor(public readonly name: string, public readonly aliasedType: Type) {
-    super(TTag.Alias);
+  constructor(
+    id: number,
+    public readonly name: string,
+    public readonly aliasedType: Type
+  ) {
+    super(TTag.Alias, id);
   }
 
   resolve(): Type {
@@ -112,8 +118,8 @@ export class AliasType extends Type {
 }
 
 export class TupleType extends Type {
-  constructor(public readonly members: Type[]) {
-    super(TTag.Tuple);
+  constructor(id: number, public readonly members: Type[]) {
+    super(id, TTag.Tuple);
   }
 }
 
@@ -124,12 +130,13 @@ export class StructField {
 export class StructType extends Type {
   #inheritanceDepth: number | undefined = undefined;
   constructor(
+    id: number,
     public readonly name: string,
     public readonly fields: StructField[],
     public readonly base?: Type,
     public readonly isStructLike?: boolean
   ) {
-    super(TTag.Struct);
+    super(id, TTag.Struct);
   }
 
   getInheritanceDepth(): number {
@@ -155,12 +162,13 @@ export class EnumOption {
 export class EnumType extends Type {
   #size: number | undefined = 4;
   constructor(
+    id: number,
     public readonly name: string,
     public readonly options: EnumOption[],
     public readonly base?: Type,
     public readonly sealed: boolean = false
   ) {
-    super(TTag.Enum);
+    super(id, TTag.Enum);
   }
 
   getOption(name: string): EnumOption | undefined {
@@ -191,11 +199,12 @@ class FunctionParam {
 
 export class FunctionType extends Type {
   constructor(
+    id: number,
     public readonly name: string,
     public readonly params: FunctionParam[],
     public readonly ret: Type
   ) {
-    super(TTag.Func);
+    super(id, TTag.Func);
   }
 
   getParam(name: string): FunctionParam | undefined {
@@ -203,7 +212,148 @@ export class FunctionType extends Type {
   }
 }
 
+export class ArrayType extends Type {
+  constructor(
+    id: number,
+    public readonly elementType: Type,
+    public readonly size: number
+  ) {
+    super(id, TTag.Array);
+  }
+
+  getSize(): number {
+    return this.elementType.getSize() * this.size;
+  }
+}
+
+export class PointerType extends Type {
+  constructor(
+    id: number,
+    public readonly pointee: Type,
+    public readonly isConst: boolean = false
+  ) {
+    super(id, TTag.Pointer);
+  }
+
+  getSize(): number {
+    return this.pointee.getSize();
+  }
+
+  isNonConstPointer(): boolean {
+    return !this.isConst;
+  }
+}
+
+export enum TVariance {
+  Constant = 0x00,
+  Covariant = 0x01,
+  ContraVariant = 0x02,
+  Invariant = TVariance.Covariant | TVariance.ContraVariant,
+}
+
+class TypeTable {
+  #count: number = 0;
+  #unknownType: Type;
+  #primitives: Map<TTag, Type> = new Map<TTag, Type>();
+
+  constructor() {
+    this.#unknownType = this.getOrInsertType(
+      new Type(TTag.Unknown, this.#uniqueId())
+    );
+
+    this.#primitives.set(
+      TTag.Bool,
+      this.getOrInsertType(new Type(TTag.Bool, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.Char,
+      this.getOrInsertType(new Type(TTag.Char, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.Byte,
+      this.getOrInsertType(new Type(TTag.Byte, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.I8,
+      this.getOrInsertType(new Type(TTag.I8, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.I16,
+      this.getOrInsertType(new Type(TTag.I16, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.I32,
+      this.getOrInsertType(new Type(TTag.I32, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.I64,
+      this.getOrInsertType(new Type(TTag.I64, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.U8,
+      this.getOrInsertType(new Type(TTag.U8, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.U16,
+      this.getOrInsertType(new Type(TTag.U16, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.U32,
+      this.getOrInsertType(new Type(TTag.U32, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.U64,
+      this.getOrInsertType(new Type(TTag.U64, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.F32,
+      this.getOrInsertType(new Type(TTag.F32, this.#uniqueId()))
+    );
+    this.#primitives.set(
+      TTag.F64,
+      this.getOrInsertType(new Type(TTag.F64, this.#uniqueId()))
+    );
+  }
+
+  #uniqueId(): number {
+    return this.#count++;
+  }
+
+  makePrimitive(tag: TTag): Type {
+    assert(TYPE_TAGS[tag].primitive);
+    return this.#primitives.get(tag)!;
+  }
+
+  makeUnknownType(): Type {
+    return this.#unknownType;
+  }
+
+  makeTupleType(members: Type[]): Type {
+    return this.getOrInsertType(new TupleType(this.#uniqueId(), members));
+  }
+
+  makeArray(elementType: Type, size: number = 0): Type {
+    return this.getOrInsertType(
+      new ArrayType(this.#uniqueId(), elementType, size)
+    );
+  }
+
+  makePointer(pointee: Type, isConst: boolean = false): Type {
+    return this.getOrInsertType(
+      new PointerType(this.#uniqueId(), pointee, isConst)
+    );
+  }
+
+  getOrInsertType(type: Type): Type {}
+}
+
 export class TypingContext {
+  static invertVariannce(variance: TVariance): TVariance {
+    if (variance === TVariance.Covariant) return TVariance.ContraVariant;
+    if (variance === TVariance.ContraVariant) return TVariance.Covariant;
+    return variance;
+  }
+
   resolve(type: Type): Type {
     while (true) {
       if (type.tag == TTag.Alias) {
@@ -316,5 +466,81 @@ export class TypingContext {
     }
 
     return false;
+  }
+
+  private traverseWithVariance(
+    from: Type,
+    to: Type,
+    variance: TVariance,
+    func: (
+      to: Type,
+      from: Type,
+      variance: TVariance,
+      context: TypingContext
+    ) => void
+  ) {
+    if (from.tag != to.tag && from.tag !== TTag.Variant) {
+      return;
+    }
+
+    switch (from.tag) {
+      case TTag.Variant:
+        func(from, to, variance, this);
+        break;
+      case TTag.Tuple: {
+        const t1 = <TupleType>from,
+          t2 = <TupleType>to;
+        for (var i = 0; i < t1.members.length && i < t2.members.length; i++) {
+          this.traverseWithVariance(
+            t1.members[i],
+            t2.members[i],
+            variance,
+            func
+          );
+        }
+        break;
+      }
+      case TTag.Func: {
+        const f1 = <FunctionType>from,
+          f2 = <FunctionType>to;
+        for (var i = 0; i < f1.params.length && i < f2.params.length; i++) {
+          this.traverseWithVariance(
+            f1.params[i].type,
+            f2.params[i].type,
+            variance,
+            func
+          );
+        }
+        this.traverseWithVariance(f1.ret, f2.ret, variance, func);
+        break;
+      }
+
+      case TTag.Array: {
+        const a1 = <ArrayType>from,
+          a2 = <ArrayType>to;
+        this.traverseWithVariance(
+          a1.elementType,
+          a2.elementType,
+          TVariance.Invariant,
+          func
+        );
+        break;
+      }
+
+      case TTag.Pointer: {
+        const a1 = <PointerType>from,
+          a2 = <PointerType>to;
+        this.traverseWithVariance(
+          a1.pointee,
+          a2.pointee,
+          TVariance.Invariant,
+          func
+        );
+        break;
+      }
+
+      default:
+        break;
+    }
   }
 }
