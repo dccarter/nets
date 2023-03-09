@@ -30,7 +30,7 @@ export class List<T extends ListItem> {
     return copy;
   }
 
-  each(func: (node: T, index?: number) => true | undefined) {
+  each(func: (node: T, index?: number) => true | undefined | void) {
     var node = this.first;
     var i = 0;
     while (node) {

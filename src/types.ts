@@ -101,6 +101,14 @@ export class Type {
   resolve(): Type {
     return this;
   }
+
+  clone(id: number, context: TypingContext): Type {
+    return new Type(this.tag, id);
+  }
+
+  copy(id: number): Type {
+    return new Type(this.tag, id);
+  }
 }
 
 export class AliasType extends Type {
@@ -115,11 +123,32 @@ export class AliasType extends Type {
   resolve(): Type {
     return this.aliasedType;
   }
+
+  clone(id: number, context: TypingContext): Type {
+    return new AliasType(id, this.name, context.clone(this.aliasedType));
+  }
+
+  copy(id: number): Type {
+    return new AliasType(id, this.name, this.aliasedType);
+  }
 }
 
 export class TupleType extends Type {
   constructor(id: number, public readonly members: Type[]) {
     super(id, TTag.Tuple);
+  }
+
+  clone(id: number, context: TypingContext): Type {
+    const members = new Array<Type>(this.members.length);
+    this.members.forEach(
+      (member, index) => (members[index] = context.clone(member))
+    );
+    return new TupleType(id, members);
+  }
+
+  copy(id: number): Type {
+    const members = [...this.members];
+    return new TupleType(id, members);
   }
 }
 
@@ -152,6 +181,20 @@ export class StructType extends Type {
 
   getField(name: string): StructField | undefined {
     return this.fields.find((field) => field.name === name);
+  }
+
+  clone(id: number, context: TypingContext): Type {
+    const fields = new Array<StructField>(this.fields.length);
+    this.fields.forEach(
+      (field, index) =>
+        (fields[index] = new StructField(field.name, context.clone(field.type)))
+    );
+    return new StructType(id, this.name, fields, this.base, this.isStructLike);
+  }
+
+  copy(id: number): Type {
+    const fields = [...this.fields];
+    return new StructType(id, this.name, fields, this.base, this.isStructLike);
   }
 }
 
@@ -187,6 +230,14 @@ export class EnumType extends Type {
     }
     return this.#size;
   }
+
+  clone(id: number, context: TypingContext): Type {
+    return new EnumType(id, this.name, [...this.options], this.base, false);
+  }
+
+  copy(id: number): Type {
+    return new EnumType(id, this.name, [...this.options], this.base, false);
+  }
 }
 
 class FunctionParam {
@@ -210,6 +261,22 @@ export class FunctionType extends Type {
   getParam(name: string): FunctionParam | undefined {
     return this.params.find((param) => param.name === name);
   }
+
+  clone(id: number, context: TypingContext): Type {
+    const params = new Array<StructField>(this.params.length);
+    this.params.forEach(
+      (param, index) =>
+        (params[index] = new FunctionParam(
+          param.name,
+          context.clone(param.type)
+        ))
+    );
+    return new FunctionType(id, this.name, params, context.clone(this.ret));
+  }
+
+  copy(id: number): Type {
+    return new FunctionType(id, this.name, [...this.params], this.ret);
+  }
 }
 
 export class ArrayType extends Type {
@@ -223,6 +290,14 @@ export class ArrayType extends Type {
 
   getSize(): number {
     return this.elementType.getSize() * this.size;
+  }
+
+  clone(id: number, context: TypingContext): Type {
+    return new ArrayType(id, context.clone(this.elementType), this.size);
+  }
+
+  copy(id: number): Type {
+    return new ArrayType(id, this.elementType, this.size);
   }
 }
 
@@ -242,6 +317,14 @@ export class PointerType extends Type {
   isNonConstPointer(): boolean {
     return !this.isConst;
   }
+
+  clone(id: number, context: TypingContext): Type {
+    return new PointerType(id, context.clone(this.pointee), this.isConst);
+  }
+
+  copy(id: number): Type {
+    return new PointerType(id, this.pointee, this.isConst);
+  }
 }
 
 export enum TVariance {
@@ -251,10 +334,11 @@ export enum TVariance {
   Invariant = TVariance.Covariant | TVariance.ContraVariant,
 }
 
-class TypeTable {
+export class TypingContext {
   #count: number = 0;
   #unknownType: Type;
   #primitives: Map<TTag, Type> = new Map<TTag, Type>();
+  #table: Map<number, Type> = new Map<number, Type>();
 
   constructor() {
     this.#unknownType = this.getOrInsertType(
@@ -319,6 +403,10 @@ class TypeTable {
     return this.#count++;
   }
 
+  clone(type: Type): Type {
+    return type.clone(this.#uniqueId(), this);
+  }
+
   makePrimitive(tag: TTag): Type {
     assert(TYPE_TAGS[tag].primitive);
     return this.#primitives.get(tag)!;
@@ -344,11 +432,24 @@ class TypeTable {
     );
   }
 
-  getOrInsertType(type: Type): Type {}
-}
+  makeFunction(name: string, params: FunctionParam[], ret: Type): Type {
+    return this.getOrInsertType(
+      new FunctionType(this.#uniqueId(), name, params, ret)
+    );
+  }
 
-export class TypingContext {
-  static invertVariannce(variance: TVariance): TVariance {
+  makeAlias(name: string, aliased: Type): Type {
+    return this.getOrInsertType(new AliasType(this.#uniqueId(), name, aliased));
+  }
+
+  getOrInsertType(type: Type): Type {
+    if (!this.#table.has(type.id)) {
+      this.#table.set(type.id, type);
+    }
+    return type;
+  }
+
+  static invertVariance(variance: TVariance): TVariance {
     if (variance === TVariance.Covariant) return TVariance.ContraVariant;
     if (variance === TVariance.ContraVariant) return TVariance.Covariant;
     return variance;

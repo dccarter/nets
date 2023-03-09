@@ -1,6 +1,5 @@
 import { List, ListItem } from "./list";
 import { Range } from "./source";
-import { Symbol } from "./symbol";
 import { Tok } from "./token";
 
 export enum Ast {
@@ -72,7 +71,6 @@ export interface Operation {
 
 export class AstNode extends ListItem {
   public parent?: AstNode = undefined;
-  public symbol?: Symbol = undefined;
 
   constructor(public readonly id: Ast, public range?: Range) {
     super();
@@ -570,7 +568,7 @@ export class Declaration extends AstNode {
 export class VariableDeclaration extends Declaration {
   constructor(
     public modifier: Tok,
-    public variable: AstNodeList,
+    public variable: AstNode,
     public type?: AstNode,
     public init?: AstNode,
     public isExport?: boolean,
@@ -1118,6 +1116,12 @@ export abstract class AstVisitor<T = void> {
       this.visitContinueStatement(<AstNode>curr, parent),
   };
 
+  #visitList(nodes: AstNodeList, parent?: AstNode) {
+    nodes.each((node) => {
+      this.visit(node, parent);
+    });
+  }
+
   visit(node: AstNode, parent?: AstNode): T | void {
     return this.dispatch[node.id](node, parent);
   }
@@ -1132,36 +1136,99 @@ export abstract class AstVisitor<T = void> {
   visitFloatLiteral(node: FloatLit, parent?: AstNode): T | void {}
   visitStringLiteral(node: StringLit, parent?: AstNode): T | void {}
   visitIdentifier(node: Identifier, parent?: AstNode): T | void {}
-  visitStringExpression(node: StringExpression, parent?: AstNode): T | void {}
+  visitStringExpression(node: StringExpression, parent?: AstNode): T | void {
+    this.#visitList(node.parts, node);
+  }
+
   visitGroupingExpression(
     node: GroupingExpression,
     parent?: AstNode
-  ): T | void {}
-  visitPrefixExpression(node: PrefixExpression, parent?: AstNode): T | void {}
-  visitPostfixExpression(node: PostfixExpression, parent?: AstNode): T | void {}
-  visitUnaryExpression(node: UnaryExpression, parent?: AstNode): T | void {}
-  visitBinaryExpression(node: BinaryExpression, parent?: AstNode): T | void {}
-  visitTernaryExpression(node: TernaryExpression, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitPrefixExpression(node: PrefixExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitPostfixExpression(node: PostfixExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitUnaryExpression(node: UnaryExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitBinaryExpression(node: BinaryExpression, parent?: AstNode): T | void {
+    this.visit(node.lhs, node);
+    this.visit(node.rhs, node);
+  }
+
+  visitTernaryExpression(node: TernaryExpression, parent?: AstNode): T | void {
+    this.visit(node.cond, node);
+    this.visit(node.ifTrue, node);
+    this.visit(node.ifFalse, node);
+  }
+
   visitAssignmentExpression(
     node: AssignmentExpression,
     parent?: AstNode
-  ): T | void {}
-  visitCallExpression(node: CallExpression, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.lhs, node);
+    this.visit(node.rhs, node);
+  }
+
+  visitCallExpression(node: CallExpression, parent?: AstNode): T | void {
+    this.visit(node.callee, node);
+    this.#visitList(node.args);
+  }
+
   visitMacroCallExpression(
     node: MacroCallExpression,
     parent?: AstNode
-  ): T | void {}
-  visitSpreadExpression(node: SpreadExpression, parent?: AstNode): T | void {}
-  visitYieldExpression(node: YieldExpression, parent?: AstNode): T | void {}
-  visitNewExpression(node: NewExpression, parent?: AstNode): T | void {}
-  visitBracketExpression(node: BracketExpression, parent?: AstNode): T | void {}
-  visitDotExpression(node: DotExpression, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.callee, node);
+    if (node.args) this.#visitList(node.args, node);
+  }
+
+  visitSpreadExpression(node: SpreadExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitYieldExpression(node: YieldExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitNewExpression(node: NewExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitBracketExpression(node: BracketExpression, parent?: AstNode): T | void {
+    this.visit(node.target, node);
+    this.#visitList(node.indices, node);
+  }
+
+  visitDotExpression(node: DotExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+  }
+
   visitMemberAccessExpression(
     node: MemberAccessExpression,
     parent?: AstNode
-  ): T | void {}
-  visitTupleExpression(node: TupleExpression, parent?: AstNode): T | void {}
-  visitStructExpression(node: StructExpression, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.target, node);
+    this.visit(node.member, node);
+  }
+
+  visitTupleExpression(node: TupleExpression, parent?: AstNode): T | void {
+    this.#visitList(node.elements, node);
+  }
+
+  visitStructExpression(node: StructExpression, parent?: AstNode): T | void {
+    this.visit(node.lhs, node);
+    this.#visitList(node.fields, node);
+  }
+
   visitArrayLitExpression(node: ArrayExpression, parent?: AstNode): T | void {}
   visitSignatureExpression(
     node: SignatureExpression,
