@@ -105,8 +105,8 @@ export class AstPrinter extends AstVisitor {
       write(this.#indent);
     }
 
-    if (decl.isOpaque || decl.isExport) {
-      if (decl.isExport) write(fmtKeyword, "export ");
+    if (decl.isOpaque || decl.isPublic) {
+      if (decl.isPublic) write(fmtKeyword, "pub ");
       if (decl.isOpaque) write(fmtKeyword, "opaque ");
     }
   }
@@ -114,7 +114,7 @@ export class AstPrinter extends AstVisitor {
   visitProgram(node: Program): void {
     node.nodes.each((next) => {
       this.visit(next, node);
-      write("\n");
+      write("\n\n");
     });
   }
 

@@ -9,7 +9,10 @@ enum Tok {
     Add, Sub
 }
 
+pub opaque type println = func(any[]) -> void;
+
 func main(...args: string[]) {
-    const (x,y) : (Tok, Age) = (Tok.Add, Age{age: 32});
-    return (x, y);
+    for (const arg : args) {
+        println(arg);
+    }
 }

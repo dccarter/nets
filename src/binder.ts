@@ -10,6 +10,7 @@ import {
   FunctionParam,
   Identifier,
   IfStatement,
+  MemberAccessExpression,
   Program,
   ReturnStatement,
   StructDeclaration,
@@ -57,6 +58,14 @@ export class Binder extends AstVisitor {
     if (sym) {
       node.declsite = sym;
     }
+  }
+
+  visitMemberAccessExpression(
+    node: MemberAccessExpression,
+    parent?: AstNode
+  ): void {
+    this.visit(node.target);
+    // We don't know the type yet, so don't visit member
   }
 
   visitFuncParam(node: FunctionParam): void {

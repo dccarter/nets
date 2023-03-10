@@ -1,6 +1,7 @@
 import { List, ListItem } from "./list";
 import { Range } from "./source";
 import { Tok } from "./token";
+import { Type } from "./types";
 
 export enum Ast {
   Null,
@@ -72,6 +73,7 @@ export interface Operation {
 
 export class AstNode extends ListItem {
   public parent?: AstNode = undefined;
+  public type?: Type;
 
   constructor(public readonly id: Ast, public range?: Range) {
     super();
@@ -568,7 +570,7 @@ export class TypedExpression extends AstNode {
 export class Declaration extends AstNode {
   constructor(
     public readonly id: Ast,
-    public readonly isExport?: boolean,
+    public readonly isPublic?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
     public attrs?: AstNodeList
@@ -583,11 +585,11 @@ export class VariableDeclaration extends Declaration {
     public variable: AstNodeList,
     public type?: AstNode,
     public init?: AstNode,
-    public isExport?: boolean,
+    public isPublic?: boolean,
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.VariableDecl, isExport, false, range, attrs);
+    super(Ast.VariableDecl, isPublic, false, range, attrs);
   }
 
   clone(): AstNode {
@@ -596,7 +598,7 @@ export class VariableDeclaration extends Declaration {
       this.variable.clone(),
       this.type?.clone(),
       this.init?.clone(),
-      this.isExport,
+      this.isPublic,
       this.range,
       this.attrs?.clone()
     );
@@ -610,11 +612,11 @@ export class FunctionDeclaration extends Declaration {
     public readonly body?: AstNode,
     public readonly isAsync?: boolean,
     public readonly genericParams?: AstNodeList,
-    public readonly isExport?: boolean,
+    public readonly isPublic?: boolean,
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.FuncDecl, isExport, false, range, attrs);
+    super(Ast.FuncDecl, isPublic, false, range, attrs);
   }
 
   clone(): AstNode {
@@ -624,7 +626,7 @@ export class FunctionDeclaration extends Declaration {
       this.body?.clone(),
       this.isAsync,
       this.genericParams?.clone(),
-      this.isExport,
+      this.isPublic,
       this.range,
       this.attrs?.clone()
     );
@@ -636,12 +638,12 @@ export class TypeAlias extends Declaration {
     public readonly name: AstNode,
     public readonly aliased: AstNode,
     public readonly params?: AstNodeList,
-    public readonly isExport?: boolean,
+    public readonly isPublic?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.TypeAlias, isExport, isOpaque, range, attrs);
+    super(Ast.TypeAlias, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -649,7 +651,7 @@ export class TypeAlias extends Declaration {
       this.name,
       this.aliased.clone(),
       this.params?.clone(),
-      this.isExport,
+      this.isPublic,
       this.isOpaque,
       this.range,
       this.attrs?.clone()
@@ -662,12 +664,12 @@ export class UnionDeclaration extends Declaration {
     public readonly name: AstNode,
     public readonly members: AstNodeList,
     public readonly params?: AstNodeList,
-    public readonly isExport?: boolean,
+    public readonly isPublic?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.UnionDecl, isExport, isOpaque, range, attrs);
+    super(Ast.UnionDecl, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -675,7 +677,7 @@ export class UnionDeclaration extends Declaration {
       this.name,
       this.members.clone(),
       this.params?.clone(),
-      this.isExport,
+      this.isPublic,
       this.isOpaque,
       this.range,
       this.attrs?.clone()
@@ -708,12 +710,12 @@ export class EnumDeclaration extends Declaration {
     public readonly name: AstNode,
     public readonly options: AstNodeList,
     public readonly base?: AstNode,
-    public readonly isExport?: boolean,
+    public readonly isPublic?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.EnumDecl, isExport, isOpaque, range, attrs);
+    super(Ast.EnumDecl, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -721,7 +723,7 @@ export class EnumDeclaration extends Declaration {
       this.name,
       this.options.clone(),
       this.base?.clone(),
-      this.isExport,
+      this.isPublic,
       this.isOpaque,
       this.range,
       this.attrs?.clone()
@@ -757,12 +759,12 @@ export class StructDeclaration extends Declaration {
     public readonly params?: AstNodeList,
     public readonly base?: AstNode,
     public readonly isTupleLike?: boolean,
-    public readonly isExport?: boolean,
+    public readonly isPublic?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
     attrs?: AstNodeList
   ) {
-    super(Ast.StructDecl, isExport, isOpaque, range, attrs);
+    super(Ast.StructDecl, isPublic, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
@@ -772,7 +774,7 @@ export class StructDeclaration extends Declaration {
       this.params?.clone(),
       this.base?.clone(),
       this.isTupleLike,
-      this.isExport,
+      this.isPublic,
       this.isOpaque,
       this.range,
       this.attrs?.clone()
@@ -1164,6 +1166,8 @@ export abstract class AstVisitor<T = void> {
   visitIdentifier(node: Identifier, parent?: AstNode): T | void {}
   visitVariable(node: Variable, parent?: AstNode): T | void {}
 
+  visitType(node: AstNode): T | void {}
+
   visitStringExpression(node: StringExpression, parent?: AstNode): T | void {
     this.#visitList(node.parts, node);
   }
@@ -1319,6 +1323,7 @@ export abstract class AstVisitor<T = void> {
   }
 
   visitStructDeclaration(node: StructDeclaration, parent?: AstNode): T | void {
+    this.visitType(node);
     this.visit(node.name, node);
     if (node.base) this.visit(node.base);
     if (node.fields) this.#visitList(node.fields, node);
