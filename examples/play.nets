@@ -2,10 +2,14 @@
  * Development playgroud for nets
  */
 
-struct User {
-    name: string,
-    age: string
+struct Age {
+    age: i32
+}
+enum Tok {
+    Add, Sub
 }
 
-func main() {
+func main(...args: string[]) {
+    const (x,y) : (Tok, Age) = (Tok.Add, Age{age: 32});
+    return (x, y);
 }

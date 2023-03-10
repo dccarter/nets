@@ -2,20 +2,20 @@ import {
   AstNode,
   AstNodeList,
   AstVisitor,
-  BinaryExpression,
+  BreakStatement,
+  CodeBlock,
+  EnumDeclaration,
+  ForStatement,
   FunctionDeclaration,
   FunctionParam,
-  FunctionParams,
-  GroupingExpression,
   Identifier,
-  PostfixExpression,
-  PrefixExpression,
+  IfStatement,
   Program,
-  SignatureExpression,
-  StringExpression,
-  TernaryExpression,
-  UnaryExpression,
-  VariableDeclaration,
+  ReturnStatement,
+  StructDeclaration,
+  UnionDeclaration,
+  Variable,
+  WhileStatement,
 } from "./ast";
 import { Logger } from "./diagnostics";
 import { Scope } from "./scope";
@@ -42,55 +42,98 @@ export class Binder extends AstVisitor {
     nodes.each((node) => bindOne(node));
   }
 
-  visitStringExpression(node: StringExpression, parent?: AstNode): void {
-    this.#bindList(node.parts);
+  bind() {
+    this.P.nodes.each((node) => {
+      this.visit(node);
+    });
   }
 
-  visitGroupingExpression(node: GroupingExpression): void {
-    this.visit(node.expr);
+  visitIdentifier(node: Identifier): void {
+    this.#scope.insert(node.name, node);
   }
 
-  visitPrefixExpression(node: PrefixExpression): void {
-    this.visit(node.expr);
-  }
-
-  visitPostfixExpression(node: PostfixExpression): void {
-    this.visit(node.expr);
-  }
-
-  visitUnaryExpression(node: UnaryExpression, parent?: AstNode): T | void {}
-  visitBinaryExpression(node: BinaryExpression, parent?: AstNode): T | void {}
-  visitTernaryExpression(node: TernaryExpression, parent?: AstNode): T | void {}
-
-  visitSignatureExpression(node: SignatureExpression): void {
-    this.visit(node.params);
-    if (node.ret) this.visit(node.ret);
-  }
-
-  visitVariableDeclaration(node: VariableDeclaration): void {
-    if (node.init) this.visit(node.init);
-
-    const name = (<Identifier>node.variable).name;
-    this.#scope.insert(name, node);
-
-    if (node.type) {
-      this.visit(node.type);
+  visitVariable(node: Variable): void {
+    const sym = this.#scope.findSymbol(node.name, node.range!);
+    if (sym) {
+      node.declsite = sym;
     }
   }
 
   visitFuncParam(node: FunctionParam): void {
-    this.#scope.insert((<Identifier>node.name).name, node.name);
+    this.visit(node.name);
     this.visit(node.type);
   }
 
-  visitFuncParams(node: FunctionParams): void {
-    this.#bindList(node.params);
-  }
-
   visitFunctionDeclaration(node: FunctionDeclaration): void {
+    this.visit(node.name);
     this.#push(node);
     this.visit(node.signature);
     if (node.body) this.visit(node.body);
     this.#pop();
+  }
+
+  visitUnionDeclaration(node: UnionDeclaration): void {
+    this.visit(node.name);
+    this.#push(node);
+    this.#bindList(node.members);
+    this.#pop();
+  }
+
+  visitEnumDeclaration(node: EnumDeclaration): void {
+    this.visit(node.name, node);
+    if (node.base) this.visit(node.base);
+    this.#push(node);
+    this.#bindList(node.options);
+    this.#pop();
+  }
+
+  visitStructDeclaration(node: StructDeclaration): void {
+    this.visit(node.name, node);
+    if (node.base) this.visit(node.base);
+    this.#push(node);
+    if (node.fields) this.#bindList(node.fields);
+    this.#pop();
+  }
+
+  visitCodeBlock(node: CodeBlock): void {
+    this.#push(node);
+    this.#bindList(node.nodes);
+    this.#pop();
+  }
+
+  visitIfStatement(node: IfStatement): void {
+    this.#push(node); // because if (const x = ...)
+    this.visit(node.cond, node);
+    this.visit(node.ifTrue, node);
+    if (node.ifFalse) this.visit(node.ifFalse, node);
+    this.#pop();
+  }
+
+  visitWhileStatement(node: WhileStatement): void {
+    this.visit(node.cond, node);
+    this.#push(node);
+    this.visit(node.body, node);
+    this.#pop();
+  }
+
+  visitForStatement(node: ForStatement): void {
+    this.#push(node);
+    this.visit(node.init, node);
+    this.visit(node.expr, node);
+    this.visit(node.body, node);
+    this.#pop();
+  }
+
+  visitReturnStatement(node: ReturnStatement): void {
+    node.fun = this.#scope.findEnclosingFunction("return", node.range!);
+    if (node.value) this.visit(node.value);
+  }
+
+  visitContinueStatement(node: BreakStatement): void {
+    node.loop = this.#scope.findEnclosingLoop("continue", node.range!);
+  }
+
+  visitBreakStatement(node: BreakStatement): void {
+    node.loop = this.#scope.findEnclosingLoop("break", node.range!);
   }
 }

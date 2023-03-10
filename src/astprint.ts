@@ -88,11 +88,11 @@ export class AstPrinter extends AstVisitor {
     sep: string = ", ",
     indent: boolean = false
   ): void {
-    var expr = list.first;
+    var expr = <AstNode>list.first;
     while (expr) {
       if (indent) write(this.#indent);
       this.visit(expr, parent);
-      expr = expr.next;
+      expr = <AstNode>expr.next;
       if (expr) write(sep);
     }
   }
@@ -112,12 +112,10 @@ export class AstPrinter extends AstVisitor {
   }
 
   visitProgram(node: Program): void {
-    var next = node.nodes.first;
-    while (next) {
-      this.visit(next);
+    node.nodes.each((next) => {
+      this.visit(next, node);
       write("\n");
-      next = next.next;
-    }
+    });
   }
 
   visitNull(node: AstNode): void {
@@ -156,10 +154,13 @@ export class AstPrinter extends AstVisitor {
     write(node.name);
   }
 
+  visitVariable(node: Identifier): void {
+    write(node.name);
+  }
+
   visitStringExpression(node: StringExpression): void {
     write(`${fmtString}\`${fmtReset}`);
-    var part = node.parts.first;
-    while (part) {
+    node.parts.each((part) => {
       if (part.id == Ast.StrLit) {
         write(fmtString, (<StringLit>part).value, fmtReset);
       } else {
@@ -167,8 +168,7 @@ export class AstPrinter extends AstVisitor {
         this.visit(part);
         write(fmtLiteral, "}", fmtReset);
       }
-      part = part.next;
-    }
+    });
     write(`${fmtString}\`${fmtReset}`);
   }
 
@@ -220,12 +220,10 @@ export class AstPrinter extends AstVisitor {
   visitCallExpression(node: CallExpression): void {
     this.visit(node.callee);
     write("(");
-    var arg = node.args.first;
-    while (arg) {
+    node.args.each((arg, index) => {
+      if (index !== 0) if (arg) write(", ");
       this.visit(arg);
-      arg = arg.next;
-      if (arg) write(", ");
-    }
+    });
     write(")");
   }
 
@@ -320,7 +318,7 @@ export class AstPrinter extends AstVisitor {
     this.visitDeclaration(<Declaration>node);
     write(`${fmtKeyword}${TOKEN_LIST[node.modifier].s}${fmtReset} `);
 
-    if (node.variable.count === 1) this.visit(node.variable.first!);
+    if (node.variable.count === 1) this.visit(<AstNode>node.variable.first!);
     else {
       write("(");
       this.printAstNodeList(node.variable);
@@ -353,7 +351,8 @@ export class AstPrinter extends AstVisitor {
     this.visitDeclaration(<Declaration>node);
     if (node.isAsync) write(fmtKeyword, "async ", fmtReset);
     write(fmtKeyword, "func", fmtReset);
-    write(" ", node.name);
+    write(" ");
+    this.visit(node.name, node);
     this.visit(node.signature, node);
     write(" ");
     if (node.body) {
@@ -422,7 +421,7 @@ export class AstPrinter extends AstVisitor {
 
   visitStructDeclaration(node: StructDeclaration): void {
     this.visitDeclaration(<Declaration>node);
-    write(fmtKeyword, "struct", fmtReset);
+    write(fmtKeyword, "struct ", fmtReset);
     this.visit(node.name);
     if (node.params && node.params.count) {
       write(" [");

@@ -53,6 +53,7 @@ import {
   TypeAlias,
   TypedExpression,
   UnionDeclaration,
+  Variable,
   VariableDeclaration,
   WhileStatement,
 } from "./ast";
@@ -200,6 +201,11 @@ export class Parser {
     return new Identifier(tok.value as string, tok.range);
   }
 
+  private variable(): Identifier {
+    const tok = this.consume(Tok.Ident);
+    return new Variable(tok.value as string, tok.range);
+  }
+
   private expression(allowStructs: boolean = true): AstNode {
     const expr = this.ternary(() => this.primary(allowStructs));
     if (this.match(Tok.Colon)) {
@@ -221,7 +227,7 @@ export class Parser {
     this.consume(Tok.LParen);
     if (this.check(Tok.Const, Tok.Var)) {
       // if (const x = expr)
-      cond = this.variable(undefined, true);
+      cond = this.variableDecl(undefined, true);
     } else {
       cond = this.expression(false);
     }
@@ -247,7 +253,7 @@ export class Parser {
     this.consume(Tok.LParen);
     if (this.check(Tok.Const, Tok.Var)) {
       // if (const x = expr)
-      cond = this.variable(undefined, true);
+      cond = this.variableDecl(undefined, true);
     } else {
       cond = this.expression(false);
     }
@@ -261,7 +267,7 @@ export class Parser {
   private forStatement(): AstNode {
     const tok = this.consume(Tok.For);
     this.consume(Tok.LParen);
-    const variable = this.variable(undefined, true, true);
+    const variable = this.variableDecl(undefined, true, true);
 
     this.consume(Tok.Colon);
     const range = this.expression(false);
@@ -338,7 +344,7 @@ export class Parser {
         return this.continueStatement();
       case Tok.Var:
       case Tok.Const:
-        return this.variable();
+        return this.variableDecl();
       case Tok.Func:
         if (this.peek(2).id === Tok.Ident) return this.funcDecl();
       // fallthrough
@@ -376,7 +382,7 @@ export class Parser {
   }
 
   private pathElement(): AstNode {
-    const name = this.identifier();
+    const name = this.variable();
     var typeArgs = undefined;
     if (this.match(Tok.LBracket)) {
       typeArgs = this.many(Tok.RBracket, Tok.Comma, () => this.parseType());
@@ -862,13 +868,7 @@ export class Parser {
             size = this.integer();
             break;
           case Tok.Ident:
-            size = this.path();
-            if (!this.check(Tok.LNot))
-              this.reportUnexpectedToken(
-                "size of array, can only be a macro call or integer"
-              );
-
-            if (this.check(Tok.LNot)) size = this.macroExpression(size);
+            size = this.expression();
             break;
           default:
             this.reportUnexpectedToken("size of array, integer/macro call");
@@ -949,7 +949,7 @@ export class Parser {
     return attrs;
   }
 
-  private variable(
+  private variableDecl(
     isExport?: Token,
     isExpression = false,
     noInitializer = false
@@ -1044,7 +1044,7 @@ export class Parser {
       this.match(Tok.Semicolon);
     }
     return new FunctionDeclaration(
-      name.name,
+      name,
       new SignatureExpression(
         params,
         ret,
@@ -1077,7 +1077,7 @@ export class Parser {
     if (members.count == 1) {
       return new TypeAlias(
         name,
-        members.first!,
+        <AstNode>members.first!,
         params,
         isExport !== undefined,
         isOpaque !== undefined,
@@ -1216,7 +1216,7 @@ export class Parser {
         return this.aliasDecl(isExport, isOpaque);
       case Tok.Var:
       case Tok.Const:
-        return this.variable(isExport);
+        return this.variableDecl(isExport);
       case Tok.Async:
       case Tok.Func:
         return this.funcDecl(isExport);

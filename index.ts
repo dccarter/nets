@@ -1,4 +1,5 @@
 import { AstPrinter } from "./src/astprint";
+import { Binder } from "./src/binder";
 import { Logger } from "./src/diagnostics";
 import { Lexer } from "./src/lexer";
 import { Parser } from "./src/parser";
@@ -14,6 +15,8 @@ const parser = new Parser(L, lexer);
 Timers.start("Parse");
 
 const ast = parser.parse();
+const binder = new Binder(L, ast);
+binder.bind();
 
 Timers.stop("Parse");
 Timers.print();

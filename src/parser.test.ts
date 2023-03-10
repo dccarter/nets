@@ -106,7 +106,7 @@ describe("Parser", () => {
         expectNodeList(
           (<StringExpression>ast).parts,
           { id: Ast.StrLit },
-          { id: Ast.Identifier },
+          { id: Ast.Variable },
           { id: Ast.StrLit },
           { id: Ast.BinaryExpr }
         );
@@ -166,7 +166,7 @@ describe("Parser", () => {
         expect(expr.id).toBe(Ast.PrefixExpr);
         expect((<UnaryExpression>expr).op.id).toBe(Tok.Plus);
         expr = (<UnaryExpression>expr).expr;
-        expect(expr.id).toBe(Ast.Identifier);
+        expect(expr.id).toBe(Ast.Variable);
       });
     });
 

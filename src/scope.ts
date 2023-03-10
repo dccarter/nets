@@ -37,7 +37,7 @@ export class Scope {
       if (found !== undefined) {
         return found.node;
       }
-      scope = scope.next;
+      scope = scope.prev;
     }
 
     this.L.error(range, `undefined identifier '${name}'`);
@@ -91,7 +91,7 @@ export class Scope {
     var scope: Scope | undefined = this;
     while (scope) {
       if (tags.includes(scope.node.id)) return scope.node;
-      scope = scope.next;
+      scope = scope.prev;
     }
 
     this.L.error(

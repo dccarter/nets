@@ -12,6 +12,7 @@ export enum Ast {
   IntLit,
   FloatLit,
   StrLit,
+  Variable,
   Identifier,
   StrExpr,
   GroupingExpr,
@@ -168,6 +169,17 @@ export class Identifier extends AstNode {
 
   clone(): AstNode {
     return new Identifier(this.name, this.range);
+  }
+}
+
+export class Variable extends AstNode {
+  public declsite?: AstNode;
+  constructor(public name: string, range?: Range) {
+    super(Ast.Variable, range);
+  }
+
+  clone(): AstNode {
+    return new Variable(this.name, this.range);
   }
 }
 
@@ -568,7 +580,7 @@ export class Declaration extends AstNode {
 export class VariableDeclaration extends Declaration {
   constructor(
     public modifier: Tok,
-    public variable: AstNode,
+    public variable: AstNodeList,
     public type?: AstNode,
     public init?: AstNode,
     public isExport?: boolean,
@@ -593,7 +605,7 @@ export class VariableDeclaration extends Declaration {
 
 export class FunctionDeclaration extends Declaration {
   constructor(
-    public readonly name: string,
+    public readonly name: AstNode,
     public readonly signature: AstNode,
     public readonly body?: AstNode,
     public readonly isAsync?: boolean,
@@ -980,12 +992,24 @@ export class DeferStatement extends AstNode {
 }
 
 export class ReturnStatement extends AstNode {
+  public fun?: AstNode;
   constructor(public readonly value?: AstNode, range?: Range) {
     super(Ast.ReturnStmt, range);
   }
 
   clone(): AstNode {
     return new ReturnStatement(this.value?.clone(), this.range);
+  }
+}
+
+export class BreakStatement extends AstNode {
+  public loop?: AstNode;
+  constructor(id: Ast, range?: Range) {
+    super(id, range);
+  }
+
+  clone(): AstNode {
+    return new BreakStatement(this.id, this.range);
   }
 }
 
@@ -1014,6 +1038,8 @@ export abstract class AstVisitor<T = void> {
       this.visitFloatLiteral(<FloatLit>curr, parent),
     [Ast.StrLit]: (curr: AstNode, parent?: AstNode) =>
       this.visitStringLiteral(<StringLit>curr, parent),
+    [Ast.Variable]: (curr: AstNode, parent?: AstNode) =>
+      this.visitVariable(<Variable>curr, parent),
     [Ast.Identifier]: (curr: AstNode, parent?: AstNode) =>
       this.visitIdentifier(<Identifier>curr, parent),
     [Ast.StrExpr]: (curr: AstNode, parent?: AstNode) =>
@@ -1111,9 +1137,9 @@ export abstract class AstVisitor<T = void> {
     [Ast.ReturnStmt]: (curr: AstNode, parent?: AstNode) =>
       this.visitReturnStatement(<ReturnStatement>curr, parent),
     [Ast.ContinueStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitContinueStatement(<AstNode>curr, parent),
+      this.visitContinueStatement(<BreakStatement>curr, parent),
     [Ast.BreakStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitContinueStatement(<AstNode>curr, parent),
+      this.visitContinueStatement(<BreakStatement>curr, parent),
   };
 
   #visitList(nodes: AstNodeList, parent?: AstNode) {
@@ -1136,6 +1162,8 @@ export abstract class AstVisitor<T = void> {
   visitFloatLiteral(node: FloatLit, parent?: AstNode): T | void {}
   visitStringLiteral(node: StringLit, parent?: AstNode): T | void {}
   visitIdentifier(node: Identifier, parent?: AstNode): T | void {}
+  visitVariable(node: Variable, parent?: AstNode): T | void {}
+
   visitStringExpression(node: StringExpression, parent?: AstNode): T | void {
     this.#visitList(node.parts, node);
   }
@@ -1229,52 +1257,167 @@ export abstract class AstVisitor<T = void> {
     this.#visitList(node.fields, node);
   }
 
-  visitArrayLitExpression(node: ArrayExpression, parent?: AstNode): T | void {}
+  visitArrayLitExpression(node: ArrayExpression, parent?: AstNode): T | void {
+    this.#visitList(node.elements, node);
+  }
+
   visitSignatureExpression(
     node: SignatureExpression,
     parent?: AstNode
-  ): T | void {}
-  visitClosureExpression(node: ClosureExpression, parent?: AstNode): T | void {}
-  visitTypedExpression(node: TypedExpression, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.params, node);
+    if (node.ret) this.visit(node.ret, node);
+  }
+
+  visitClosureExpression(node: ClosureExpression, parent?: AstNode): T | void {
+    this.visit(node.signature, node);
+    this.visit(node.body, node);
+  }
+
+  visitTypedExpression(node: TypedExpression, parent?: AstNode): T | void {
+    this.visit(node.expr, node);
+    this.visit(node.type, node);
+  }
+
   visitVariableDeclaration(
     node: VariableDeclaration,
     parent?: AstNode
-  ): T | void {}
+  ): T | void {
+    if (node.init) this.visit(node.init, node);
+    this.#visitList(node.variable, node);
+    if (node.type) this.visit(node.type, node);
+  }
+
   visitFunctionDeclaration(
     node: FunctionDeclaration,
     parent?: AstNode
-  ): T | void {}
-  visitTypeAlias(node: TypeAlias, parent?: AstNode): T | void {}
-  visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): T | void {}
-  visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): T | void {}
-  visitEnumOption(node: EnumOption, parent?: AstNode): T | void {}
-  visitStructDeclaration(node: StructDeclaration, parent?: AstNode): T | void {}
-  visitStructField(node: StructField, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.name, node);
+    this.visit(node.signature, node);
+    if (node.body) this.visit(node.body, node);
+  }
+
+  visitTypeAlias(node: TypeAlias, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.visit(node.aliased, node);
+  }
+
+  visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.#visitList(node.members, node);
+  }
+
+  visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    if (node.base) this.visit(node.base, node);
+    this.#visitList(node.options, node);
+  }
+
+  visitEnumOption(node: EnumOption, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    if (node.value) this.visit(node.value, node);
+  }
+
+  visitStructDeclaration(node: StructDeclaration, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    if (node.base) this.visit(node.base);
+    if (node.fields) this.#visitList(node.fields, node);
+  }
+
+  visitStructField(node: StructField, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.visit(node.type, node);
+  }
+
   visitExpressionStatement(
     node: ExpressionStatement,
     parent?: AstNode
-  ): T | void {}
-  visitCodeBlock(node: CodeBlock, parent?: AstNode): T | void {}
-  visitTupleType(node: TupleType, parent?: AstNode): T | void {}
-  visitArrayType(node: ArrayType, parent?: AstNode): T | void {}
-  visitFunctionType(node: FunctionType, parent?: AstNode): T | void {}
-  visitFuncParams(node: FunctionParams, parent?: AstNode): T | void {}
-  visitFuncParam(node: FunctionParam, parent?: AstNode): T | void {}
-  visitPointerType(node: PointerType, parent?: AstNode): T | void {}
-  visitGenericTypeParam(node: GenericTypeParam, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.expr, node);
+  }
+
+  visitCodeBlock(node: CodeBlock, parent?: AstNode): T | void {
+    this.#visitList(node.nodes, node);
+  }
+
+  visitTupleType(node: TupleType, parent?: AstNode): T | void {
+    this.#visitList(node.elements, node);
+  }
+
+  visitArrayType(node: ArrayType, parent?: AstNode): T | void {
+    this.visit(node.elementType, node);
+    if (node.size) this.visit(node.size, node);
+  }
+
+  visitFunctionType(node: FunctionType, parent?: AstNode): T | void {
+    this.visit(node.params, node);
+    this.visit(node.ret, node);
+  }
+
+  visitFuncParams(node: FunctionParams, parent?: AstNode): T | void {
+    this.#visitList(node.params, node);
+  }
+
+  visitFuncParam(node: FunctionParam, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.visit(node.type, node);
+  }
+
+  visitPointerType(node: PointerType, parent?: AstNode): T | void {
+    this.visit(node.pointee, node);
+  }
+
+  visitGenericTypeParam(node: GenericTypeParam, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.#visitList(node.constraints, node);
+  }
+
   visitStructFieldExpression(
     node: StructFieldExpression,
     parent?: AstNode
-  ): T | void {}
-  visitAttributeValue(node: AttributeValue, parent?: AstNode): T | void {}
-  visitAttribute(node: Attribute, parent?: AstNode): T | void {}
-  visitIfStatement(node: IfStatement, parent?: AstNode): T | void {}
-  visitWhileStatement(node: WhileStatement, parent?: AstNode): T | void {}
-  visitForStatement(node: ForStatement, parent?: AstNode): T | void {}
-  visitDeferStatement(node: DeferStatement, parent?: AstNode): T | void {}
-  visitReturnStatement(node: ReturnStatement, parent?: AstNode): T | void {}
-  visitContinueStatement(node: AstNode, parent?: AstNode): T | void {}
-  visitBreakStatement(node: AstNode, parent?: AstNode): T | void {}
+  ): T | void {
+    this.visit(node.name, node);
+    this.visit(node.value, node);
+  }
+
+  visitAttributeValue(node: AttributeValue, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.visit(node.value, node);
+  }
+
+  visitAttribute(node: Attribute, parent?: AstNode): T | void {
+    this.visit(node.name, node);
+    this.#visitList(node.values, node);
+  }
+
+  visitIfStatement(node: IfStatement, parent?: AstNode): T | void {
+    this.visit(node.cond, node);
+    this.visit(node.ifTrue, node);
+    if (node.ifFalse) this.visit(node.ifFalse, node);
+  }
+
+  visitWhileStatement(node: WhileStatement, parent?: AstNode): T | void {
+    this.visit(node.cond, node);
+    this.visit(node.body, node);
+  }
+
+  visitForStatement(node: ForStatement, parent?: AstNode): T | void {
+    this.visit(node.init, node);
+    this.visit(node.expr, node);
+    this.visit(node.body, node);
+  }
+
+  visitDeferStatement(node: DeferStatement, parent?: AstNode): T | void {
+    this.visit(node.body, node);
+  }
+
+  visitReturnStatement(node: ReturnStatement, parent?: AstNode): T | void {
+    if (node.value) this.visit(node.value);
+  }
+
+  visitContinueStatement(node: BreakStatement, parent?: AstNode): T | void {}
+
+  visitBreakStatement(node: BreakStatement, parent?: AstNode): T | void {}
 }
 
 export function isValueDeclaration(id: Ast): boolean {
