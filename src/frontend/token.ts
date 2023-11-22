@@ -1,5 +1,5 @@
-import { Range } from "src/source";
-import { escapeCharaterString } from "./char";
+import { Range } from "../common/source";
+import { escapeCharaterString } from "../utils/char";
 
 export enum Tok {
   Eof,
@@ -48,8 +48,8 @@ export enum Tok {
   New,
   Null,
   Package,
-  Opaque,
   Override,
+  Opaque,
   Return,
   Satisfies,
   Static,
@@ -143,6 +143,7 @@ export enum Tok {
   Comma,
   Semicolon,
   Colon,
+  Tick,
   FatArrow,
   Arrow,
   LStrExpr,
@@ -171,7 +172,7 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "any", flags: TFlags.Keyword | TFlags.Type },
   { s: "as", flags: TFlags.Keyword },
   { s: "assert", flags: TFlags.Keyword },
-  { s: "auto", flags: TFlags.Keyword },
+  { s: "auto", flags: TFlags.Keyword | TFlags.Type },
   { s: "bool", flags: TFlags.Keyword | TFlags.Type },
   { s: "break", flags: TFlags.Keyword | TFlags.ErrorBoundary },
   { s: "case", flags: TFlags.Keyword | TFlags.ErrorBoundary },
@@ -261,8 +262,8 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "/", flags: TFlags.BinaryOp, prec: 2 },
   { s: "%", flags: TFlags.BinaryOp, prec: 2 },
   { s: "**", flags: TFlags.BinaryOp, prec: 1 },
-  { s: "++", flags: TFlags.PrefixOp | TFlags.PostfixOp },
-  { s: "--", flags: TFlags.PrefixOp | TFlags.PostfixOp },
+  { s: "++", flags: TFlags.PrefixOp | TFlags.PostfixOp | TFlags.UnaryOp },
+  { s: "--", flags: TFlags.PrefixOp | TFlags.PostfixOp | TFlags.UnaryOp },
   { s: "&", flags: TFlags.BinaryOp, prec: 7 },
   { s: "|", flags: TFlags.BinaryOp, prec: 9 },
   { s: "^", flags: TFlags.BinaryOp, prec: 8 },
@@ -314,10 +315,11 @@ export const TOKEN_LIST: { [key: string]: any }[] = [
   { s: "," },
   { s: ";" },
   { s: ":" },
+  { s: "`" },
   { s: "=>" },
   { s: "->" },
-  { s: "<`" },
-  { s: "`>" },
+  { s: 'f"' },
+  { s: '"' },
   { s: "<error>" },
 ];
 
@@ -350,6 +352,14 @@ export function isLogicOperator(id: Tok): boolean {
 
 export function isBinaryOperator(id: Tok): boolean {
   return BINARY_OPS.get(id) !== undefined;
+}
+
+export function isUnaryOperator(id: Tok): boolean {
+  return UNARY_OPS.get(id) !== undefined;
+}
+
+export function isAssignmentOperator(id: Tok): boolean {
+  return UNARY_OPS.get(id) !== undefined;
 }
 
 export function isErrorBoundary(id: Tok): boolean {
@@ -392,7 +402,7 @@ export class Token {
   constructor(
     public readonly id: Tok,
     public readonly range?: Range,
-    public readonly value?: TokenValue
+    public readonly value?: TokenValue,
   ) {}
 
   info(): { [key: string]: any } {
@@ -419,7 +429,7 @@ export class CharToken extends Token {
 
   toString(): string {
     return `${Tok[this.id]} -> '${escapeCharaterString(
-      (this.value as string) || ""
+      (this.value as string) || "",
     )}'`;
   }
 }

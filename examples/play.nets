@@ -2,10 +2,27 @@
  * Development playgroud for nets
  */
 
-struct User {
-    name: string,
-    age: string
+struct User[T] {
+    - name: string = "";
+    - age: string
+
+    func hello() => 100
 }
+
+export type X = u32 | i32 | bool
+
+opaque type Z = auto
+opaque struct Hello {
+    name: i32
+    func +(){}
+    func <=(){}
+    func !!(){}
+    func ++(){}
+    func **(){}
+    func <<(){}
+}
+
+func say[T](...a: T) {}
 
 func main() {
 }

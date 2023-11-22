@@ -50,7 +50,7 @@ export class List<T extends ListItem> {
   }
 
   findAll(
-    func: (node: T, index?: number) => boolean
+    func: (node: T, index?: number) => boolean,
   ): { index: number; value: T }[] {
     const ret: { index: number; value: T }[] = [];
     var node = this.first;

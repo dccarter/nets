@@ -1,5 +1,5 @@
 import assert from "assert";
-import { fmcNormal, fmsBold, fmt, fmtReset } from "./format";
+import { fmcNormal, fmsBold, fmt, fmtReset } from "../common/format";
 
 export class Timers {
   static #timers: { [key: string]: { start: number; end?: number } } = {};
@@ -24,13 +24,13 @@ export class Timers {
 
   static print(
     printer: (data: string) => void = (data: string) =>
-      process.stdout.write(data)
+      process.stdout.write(data),
   ) {
     printer("Ellapsed (ms):\n");
     for (const name in Timers.#timers) {
       const ellapsed = this.ellapsed(name);
       printer(
-        `  ${fmt([fmsBold, fmcNormal])}${name}${fmtReset}: ${ellapsed} ms\n`
+        `  ${fmt([fmsBold, fmcNormal])}${name}${fmtReset}: ${ellapsed} ms\n`,
       );
     }
     printer("\n");

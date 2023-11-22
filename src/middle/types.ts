@@ -1,5 +1,5 @@
 import { assert } from "console";
-import { getIntegerSize } from "./utils";
+import { getIntegerSize } from "../utils/utils";
 
 export enum TTag {
   Unknown,
@@ -19,12 +19,15 @@ export enum TTag {
   F64,
   String,
   Pointer,
+  Optional,
   Array,
   Enum,
+  Func,
   Alias,
+  Union,
   Tuple,
   Struct,
-  Func,
+  Class,
 }
 
 export const TYPE_TAGS: { [Tag in TTag]: { [key: string]: any } } = {
@@ -48,9 +51,12 @@ export const TYPE_TAGS: { [Tag in TTag]: { [key: string]: any } } = {
   [TTag.Array]: { s: "array" },
   [TTag.Enum]: { s: "enum" },
   [TTag.Alias]: { s: "alias" },
+  [TTag.Union]: { s: "union" },
   [TTag.Tuple]: { s: "tuple" },
   [TTag.Struct]: { s: "struct" },
   [TTag.Func]: { s: "func" },
+  [TTag.Optional]: { s: "optional" },
+  [TTag.Class]: { s: "class" },
 };
 
 export class Type {
@@ -102,7 +108,10 @@ export class Type {
 }
 
 export class AliasType extends Type {
-  constructor(public readonly name: string, public readonly aliasedType: Type) {
+  constructor(
+    public readonly name: string,
+    public readonly aliasedType: Type,
+  ) {
     super(TTag.Alias);
   }
 
@@ -118,7 +127,10 @@ export class TupleType extends Type {
 }
 
 export class StructField {
-  constructor(public readonly name: string, public readonly type: Type) {}
+  constructor(
+    public readonly name: string,
+    public readonly type: Type,
+  ) {}
 }
 
 export class StructType extends Type {
@@ -127,7 +139,7 @@ export class StructType extends Type {
     public readonly name: string,
     public readonly fields: StructField[],
     public readonly base?: Type,
-    public readonly isStructLike?: boolean
+    public readonly isStructLike?: boolean,
   ) {
     super(TTag.Struct);
   }
@@ -149,7 +161,10 @@ export class StructType extends Type {
 }
 
 export class EnumOption {
-  constructor(public readonly name: string, public readonly value: number) {}
+  constructor(
+    public readonly name: string,
+    public readonly value: number,
+  ) {}
 }
 
 export class EnumType extends Type {
@@ -158,7 +173,7 @@ export class EnumType extends Type {
     public readonly name: string,
     public readonly options: EnumOption[],
     public readonly base?: Type,
-    public readonly sealed: boolean = false
+    public readonly sealed: boolean = false,
   ) {
     super(TTag.Enum);
   }
@@ -185,7 +200,7 @@ class FunctionParam {
   constructor(
     public readonly name: string,
     public readonly type: Type,
-    public readonly isVariadic?: boolean
+    public readonly isVariadic?: boolean,
   ) {}
 }
 
@@ -193,7 +208,7 @@ export class FunctionType extends Type {
   constructor(
     public readonly name: string,
     public readonly params: FunctionParam[],
-    public readonly ret: Type
+    public readonly ret: Type,
   ) {
     super(TTag.Func);
   }

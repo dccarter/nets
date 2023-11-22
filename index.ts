@@ -1,9 +1,9 @@
-import { AstPrinter } from "./src/astprint";
-import { Logger } from "./src/diagnostics";
-import { Lexer } from "./src/lexer";
-import { Parser } from "./src/parser";
-import { Source } from "./src/source";
-import { Timers } from "./src/timer";
+import { AstPrinter } from "./src/backend/astprint";
+import { Logger } from "./src/common/diagnostics";
+import { Lexer } from "./src/frontend/lexer";
+import { Parser } from "./src/frontend/parser";
+import { Source } from "./src/common/source";
+import { Timers } from "./src/utils/timer";
 
 const L = new Logger();
 const src = new Source("examples/play.nets");

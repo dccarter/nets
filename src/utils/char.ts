@@ -116,7 +116,7 @@ export const Ascii: { [key: string]: Char } = {
   "~": 126,
 };
 
-export function isSpace(ch: Char): Boolean {
+export function isSpace(ch: Char): boolean {
   return ch === Ascii.NL || ch === Ascii.SPACE || ch == Ascii.TAB;
 }
 

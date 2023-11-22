@@ -1,6 +1,6 @@
 import assert from "assert";
 import * as fs from "fs";
-import { Ascii } from "./char";
+import { Ascii } from "../utils/char";
 
 export interface LineColumn {
   line: number;
@@ -9,7 +9,10 @@ export interface LineColumn {
 
 export class Source {
   public readonly content: Buffer;
-  constructor(public readonly fname: string, source?: string) {
+  constructor(
+    public readonly fname: string,
+    source?: string,
+  ) {
     if (source) {
       this.content = Buffer.from(source);
     } else {
@@ -28,11 +31,11 @@ export class Range {
   constructor(
     readonly source: Source,
     public start: Location,
-    public end: Location
+    public end: Location,
   ) {
     assert(
       start.pos <= end.pos,
-      `Range start '${start.pos}' must be <=  end '${end.pos}'`
+      `Range start '${start.pos}' must be <=  end '${end.pos}'`,
     );
   }
 
@@ -70,15 +73,15 @@ export class Range {
   merge(range: Range): Range {
     assert(
       this.source == range.source,
-      "Can only merge ranges from same source"
+      "Can only merge ranges from same source",
     );
     assert(
       this.start.pos <= range.start.pos,
-      `range merge this.start (=${this.start.pos}) must be <= range.start (=${range.start.pos})`
+      `range merge this.start (=${this.start.pos}) must be <= range.start (=${range.start.pos})`,
     );
     assert(
       this.end.pos >= range.start.pos,
-      `range merge this.end (=${this.end.pos}) must be <= range.start (=${range.start.pos})`
+      `range merge this.end (=${this.end.pos}) must be <= range.start (=${range.start.pos})`,
     );
 
     return new Range(this.source, this.start, range.end);
@@ -91,11 +94,11 @@ export class Range {
     assert(lhs.source == rhs.source, "Can only merge ranges from same source");
     assert(
       lhs.start.pos <= rhs.start.pos,
-      `range merge this.start (=${lhs.start.pos}) must be <= range.start (=${rhs.start.pos})`
+      `range merge this.start (=${lhs.start.pos}) must be <= range.start (=${rhs.start.pos})`,
     );
     assert(
       lhs.end.pos <= rhs.end.pos,
-      `range merge this.end (=${lhs.end.pos}) must be <= range.start (=${rhs.start.pos})`
+      `range merge this.end (=${lhs.end.pos}) must be <= range.start (=${rhs.start.pos})`,
     );
 
     return new Range(lhs.source, lhs.start, rhs.end);

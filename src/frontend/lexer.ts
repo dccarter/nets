@@ -7,7 +7,7 @@ import {
   isDigit,
   isHexDigit,
   isSpace,
-} from "./char";
+} from "../utils/char";
 import {
   CharToken,
   FloatToken,
@@ -20,8 +20,8 @@ import {
   Token,
 } from "./token";
 
-import { Logger } from "./diagnostics";
-import { LineColumn, Location, Range, Source } from "./source";
+import { Logger } from "../common/diagnostics";
+import { LineColumn, Location, Range, Source } from "../common/source";
 
 function invalidToken(range?: Range) {
   return new InvalidToken(range);
@@ -35,8 +35,13 @@ export class Lexer {
   _rStrExpr?: Token = undefined;
   _fStrExpr?: Token = undefined;
   _pos: LineColumn = { line: 1, column: 1 };
+  _prev: Char = -1;
+  _maybeMember = false;
 
-  constructor(public readonly L: Logger, private source: Source) {}
+  constructor(
+    public readonly L: Logger,
+    private source: Source,
+  ) {}
 
   getChar(index?: number): Char {
     index ??= this._index;
@@ -50,12 +55,14 @@ export class Lexer {
   }
 
   skipChar() {
-    if (this.getChar() == Ascii.NL) {
+    this._prev = this.getChar();
+    if (this._prev == Ascii.NL) {
       this._pos.line++;
       this._pos.column = 1;
     } else {
       this._pos.column++;
     }
+    if (this._maybeMember && isSpace(this._prev)) this._maybeMember = false;
     this._index++;
   }
 
@@ -83,7 +90,7 @@ export class Lexer {
       if (ch === Ascii.EoF) {
         this.L.error(
           new Range(this.source, p, this.mark()),
-          "unterminated multi-line comment"
+          "unterminated multi-line comment",
         );
         break;
       } else if (this.acceptChar("*")) {
@@ -99,7 +106,7 @@ export class Lexer {
     return new Range(
       this.source,
       start,
-      end || { pos: this._index, coord: { ...this._pos } }
+      end || { pos: this._index, coord: { ...this._pos } },
     );
   }
 
@@ -128,7 +135,7 @@ export class Lexer {
 
         const num = parseInt(
           this.source.content.subarray(start, this._index).toString(),
-          2
+          2,
         );
 
         if (!isNaN(num)) return new IntegerToken(num, this.range(p));
@@ -142,7 +149,7 @@ export class Lexer {
 
         const num = parseInt(
           this.source.content.subarray(start, this._index).toString(),
-          16
+          16,
         );
 
         if (!isNaN(num)) return new IntegerToken(num, this.range(p));
@@ -156,7 +163,7 @@ export class Lexer {
 
         const num = parseInt(
           this.source.content.subarray(start, this._index).toString(),
-          8
+          8,
         );
 
         if (!isNaN(num)) return new IntegerToken(num, this.range(p));
@@ -169,10 +176,32 @@ export class Lexer {
     // Parse integral part
     while (isDigit(this.getChar())) this.skipChar();
 
-    if (this.getChar() === Ascii["."] && this.peekChar() === Ascii["."])
+    const c = this.peekChar();
+    if (
+      this.getChar() === Ascii["."] &&
+      !this.maybeFloat &&
+      (this._maybeMember || !isDigit(c))
+    )
       return this.finishParsingNumber(false, p);
 
-    return this.finishParsingNumber(this.acceptChar("."), p);
+    return this.finishParsingNumber(
+      this.acceptChar(".") || this.maybeExponent(this.getChar(), 1),
+      p,
+    );
+  }
+
+  get maybeFloat() {
+    const c = this.peekChar();
+    return c == Ascii.EoF || this.maybeExponent(c, 2) || isSpace(c);
+  }
+
+  maybeExponent(c: Char, idx: number) {
+    const cc = this.peekChar(idx);
+    if (c === Ascii["e"] || c == Ascii["E"])
+      return cc == Ascii["-"] || cc == Ascii["+"]
+        ? isDigit(this.peekChar(idx + 1))
+        : isDigit(cc);
+    return false;
   }
 
   finishParsingNumber(isFloat: boolean, p: Location): Token {
@@ -181,7 +210,8 @@ export class Lexer {
       while (isDigit(this.getChar())) this.skipChar();
 
       // Parse exponent
-      if (this.acceptChar("e")) {
+      if (this.maybeExponent(this.getChar(), 1)) {
+        this.skipChar();
         // Accept `+`/`-` signs
         if (!this.acceptChar("+")) this.acceptChar("-");
 
@@ -260,6 +290,7 @@ export class Lexer {
       this.skipSpaces();
 
       var p = this.mark();
+      const lastChar = this._prev;
       const c = this.getChar();
 
       if (c === Ascii.EoF) return new Token(Tok.Eof, this.range(this.mark()));
@@ -294,10 +325,15 @@ export class Lexer {
             return new Token(Tok.DotDot, this.range(p));
           }
 
-          if (isDigit(this.getChar())) {
+          if (
+            (isSpace(lastChar) || lastChar == Ascii.EoF) &&
+            isDigit(this.getChar())
+          ) {
             return this.finishParsingNumber(true, p);
+          } else {
+            this._maybeMember = true;
+            return new Token(Tok.Dot, this.range(p));
           }
-          return new Token(Tok.Dot, this.range(p));
 
         case Ascii[","]:
           return new Token(Tok.Comma, this.range(p));
@@ -481,7 +517,7 @@ export class Lexer {
               default:
                 this.L.warn(
                   this.range(pp),
-                  `unsupported escape character ${cc}`
+                  `unsupported escape character ${cc}`,
                 );
                 break;
             }
@@ -508,6 +544,8 @@ export class Lexer {
             return new CharToken(chr, this.range(p));
           }
 
+        //case Ascii["`"]:
+
         case Ascii["`"]:
           p = this.mark();
 
@@ -515,7 +553,7 @@ export class Lexer {
             this.consumeStringUntil("`");
             this.L.error(
               this.range(p),
-              "nested string expressions not supported"
+              "nested string expressions not supported",
             );
             continue;
           }

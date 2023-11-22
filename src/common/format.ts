@@ -37,11 +37,11 @@ export type FormatStyle = [FormatMode, FormatColor];
 export function fmt(style: FormatStyle): string {
   var str = "";
   if (style[0] === fmsNormal || style[1] === fmcNormal) {
-    str = "\33[0m";
+    str = "\x1b[0m";
     if (style[0] === fmsNormal && style[1] === fmcNormal) return str;
   }
 
-  str += `\33[${style[0]}`;
+  str += `\x1b[${style[0]}`;
   if (style[0] != fmsNormal) {
     str += ";";
   }

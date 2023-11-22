@@ -1,69 +1,71 @@
 import assert from "assert";
 
 import {
-  ArrayExpression,
+  ArrayExpr,
   ArrayType,
-  AssignmentExpression,
+  AssignmentExpr,
   Ast,
   AstNode,
   AstNodeList,
   AstVisitor,
   Attribute,
   AttributeValue,
-  BinaryExpression,
+  BinaryExpr,
   BoolLit,
-  BracketExpression,
-  CallExpression,
+  BracketExpr,
+  CallExpr,
   CharacterLit,
-  ClosureExpression,
+  ClosureExpr,
   CodeBlock,
   Declaration,
-  DeferStatement,
-  DotExpression,
-  EnumDeclaration,
+  DeferStmt,
+  DotExpr,
+  EnumDecl,
   EnumOption,
-  ExpressionStatement,
+  ExpressionStmt,
   FloatLit,
-  ForStatement,
-  FunctionDeclaration,
+  ForStmt,
+  FunctionDecl,
   FunctionParam,
   FunctionParams,
   FunctionType,
   GenericTypeParam,
   GroupingExpression,
   Identifier,
-  IfStatement,
+  IfStmt,
   IntegerLit,
-  MacroCallExpression,
-  MemberAccessExpression,
-  NewExpression,
+  MacroCallExpr,
+  MemberExpr,
+  NewExpr,
+  OptionalType,
   PointerType,
-  PostfixExpression,
-  PrefixExpression,
+  PostfixExpr,
+  PrefixExpr,
   PrimitiveType,
   Program,
-  ReturnStatement,
-  SignatureExpression,
-  SpreadExpression,
+  ReturnStmt,
+  SignatureExpr,
+  SpreadExpr,
   StringExpression,
   StringLit,
-  StructDeclaration,
-  StructExpression,
-  StructField,
-  StructFieldExpression,
-  TernaryExpression,
-  TupleExpression,
+  StructDecl,
+  StructExpr,
+  FieldDecl,
+  StructFieldExpr,
+  TernaryExpr,
+  TupleExpr,
   TupleType,
   TypeAlias,
-  TypedExpression,
-  UnaryExpression,
-  UnionDeclaration,
-  VariableDeclaration,
-  WhileStatement,
-  YieldExpression,
-} from "./ast";
-import { fmtKeyword, fmtLiteral, fmtReset, fmtString } from "./format";
-import { isKeyword, isKeywordString, TOKEN_LIST } from "./token";
+  TypedExpr,
+  UnaryExpr,
+  UnionDecl,
+  VariableDecl,
+  WhileStmt,
+  YieldExpr,
+  MemberDecl,
+} from "../middle/ast";
+import { fmtKeyword, fmtLiteral, fmtReset, fmtString } from "../common/format";
+import { isKeyword, isKeywordString, TOKEN_LIST } from "../frontend/token";
 
 function write(...strs: string[]) {
   for (const str of strs) {
@@ -86,12 +88,12 @@ export class AstPrinter extends AstVisitor {
     list: AstNodeList,
     parent?: AstNode,
     sep: string = ", ",
-    indent: boolean = false
+    indent: boolean = false,
   ): void {
     var expr = list.first;
     while (expr) {
       if (indent) write(this.#indent);
-      this.visit(expr, parent);
+      this.visit(<AstNode>expr, parent);
       expr = expr.next;
       if (expr) write(sep);
     }
@@ -114,7 +116,7 @@ export class AstPrinter extends AstVisitor {
   visitProgram(node: Program): void {
     var next = node.nodes.first;
     while (next) {
-      this.visit(next);
+      this.visit(<AstNode>next);
       write("\n");
       next = next.next;
     }
@@ -158,7 +160,7 @@ export class AstPrinter extends AstVisitor {
 
   visitStringExpression(node: StringExpression): void {
     write(`${fmtString}\`${fmtReset}`);
-    var part = node.parts.first;
+    var part = node.parts.first as AstNode;
     while (part) {
       if (part.id == Ast.StrLit) {
         write(fmtString, (<StringLit>part).value, fmtReset);
@@ -167,7 +169,7 @@ export class AstPrinter extends AstVisitor {
         this.visit(part);
         write(fmtLiteral, "}", fmtReset);
       }
-      part = part.next;
+      part = <AstNode>part.next;
     }
     write(`${fmtString}\`${fmtReset}`);
   }
@@ -178,58 +180,63 @@ export class AstPrinter extends AstVisitor {
     write(")");
   }
 
-  visitPrefixExpression(node: PrefixExpression): void {
+  visitPrefixExpr(node: PrefixExpr): void {
     if (isKeyword(node.op.id))
       write(fmtKeyword, TOKEN_LIST[node.op.id].s, fmtReset, " ");
     else write(TOKEN_LIST[node.op.id].s);
     this.visit(node.expr);
   }
 
-  visitPostfixExpression(node: PostfixExpression): void {
+  visitPostfixExpr(node: PostfixExpr): void {
     this.visit(node.expr);
     write(TOKEN_LIST[node.op.id].s);
   }
 
-  visitUnaryExpression(node: UnaryExpression): void {
+  visitUnaryExpr(node: UnaryExpr): void {
     if (isKeyword(node.op.id))
       write(fmtKeyword, TOKEN_LIST[node.op.id].s, fmtReset, " ");
     else write(TOKEN_LIST[node.op.id].s);
     this.visit(node.expr);
   }
 
-  visitBinaryExpression(node: BinaryExpression): void {
+  visitBinaryExpr(node: BinaryExpr): void {
     this.visit(node.lhs);
     write(" ", TOKEN_LIST[node.op.id].s, " ");
     this.visit(node.rhs);
   }
 
-  visitTernaryExpression(node: TernaryExpression): void {
+  visitTernaryExpr(node: TernaryExpr): void {
     this.visit(node.cond);
-    write("? ");
-    this.visit(node.ifTrue);
-    write(" : ");
+    if (node.ifTrue) {
+      write("? ");
+      this.visit(node.ifTrue);
+      write(" : ");
+    } else {
+      write(" ?: ");
+    }
+
     this.visit(node.ifFalse);
   }
 
-  visitAssignmentExpression(node: AssignmentExpression): void {
+  visitAssignmentExpr(node: AssignmentExpr): void {
     this.visit(node.lhs);
     write(" ", TOKEN_LIST[node.op.id].s, " ");
     this.visit(node.rhs);
   }
 
-  visitCallExpression(node: CallExpression): void {
+  visitCallExpr(node: CallExpr): void {
     this.visit(node.callee);
     write("(");
     var arg = node.args.first;
     while (arg) {
-      this.visit(arg);
+      this.visit(<AstNode>arg);
       arg = arg.next;
       if (arg) write(", ");
     }
     write(")");
   }
 
-  visitMacroCallExpression(node: MacroCallExpression): void {
+  visitMacroCallExpr(node: MacroCallExpr): void {
     this.visit(node.callee);
     write("!");
     if (node.args) {
@@ -239,62 +246,62 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitSpreadExpression(node: SpreadExpression): void {
+  visitSpreadExpr(node: SpreadExpr): void {
     write("...");
     this.visit(node.expr);
   }
 
-  visitYieldExpression(node: YieldExpression): void {
+  visitYieldExpr(node: YieldExpr): void {
     write(`${fmtKeyword}yield${fmtReset}`);
     if (node.starred) write("*");
     write(" ");
     this.visit(node.expr);
   }
 
-  visitNewExpression(node: NewExpression): void {
+  visitNewExpr(node: NewExpr): void {
     write(`${fmtKeyword}new${fmtReset} `);
     this.visit(node.expr);
   }
 
-  visitBracketExpression(node: BracketExpression): void {
+  visitBracketExpr(node: BracketExpr): void {
     this.visit(node.target);
     write("[");
     this.printAstNodeList(node.indices);
     write("]");
   }
 
-  visitDotExpression(node: DotExpression): void {
+  visitDotExpr(node: DotExpr): void {
     write(".");
     this.visit(node.expr);
   }
 
-  visitMemberAccessExpression(node: MemberAccessExpression): void {
+  visitMemberExpr(node: MemberExpr): void {
     if (node.dot) write(".");
     this.visit(node.target);
     write(TOKEN_LIST[node.op.id].s);
     this.visit(node.member);
   }
 
-  visitTupleExpression(node: TupleExpression): void {
+  visitTupleExpr(node: TupleExpr): void {
     write("(");
     this.printAstNodeList(node.elements);
     write(")");
   }
 
-  visitStructExpression(node: StructExpression): void {
+  visitStructExpr(node: StructExpr): void {
     this.visit(node.lhs);
     write("{");
     this.printAstNodeList(node.fields);
     write("}");
   }
 
-  visitArrayLitExpression(node: ArrayExpression): void {
+  visitArrayExpr(node: ArrayExpr): void {
     write("[");
     this.printAstNodeList(node.elements);
     write("]");
   }
 
-  visitSignatureExpression(node: SignatureExpression, parent: AstNode): void {
+  visitSignatureExpr(node: SignatureExpr, parent: AstNode): void {
     this.visit(node.params);
     if (node.ret) {
       if (parent.id === Ast.TupleExpr) write(" -> ");
@@ -303,25 +310,26 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitClosureExpression(node: ClosureExpression): void {
+  visitClosureExpr(node: ClosureExpr): void {
     if (node.isAsync) write(fmtKeyword, "async", fmtReset, " ");
     this.visit(node.signature, node);
     write(" => ");
     this.visit(node.body);
   }
 
-  visitTypedExpression(node: TypedExpression): void {
+  visitTypedExpr(node: TypedExpr): void {
     this.visit(node.expr);
     write(" : ");
     this.visit(node.type);
   }
 
-  visitVariableDeclaration(node: VariableDeclaration): void {
+  visitVariableDecl(node: VariableDecl): void {
     this.visitDeclaration(<Declaration>node);
     write(`${fmtKeyword}${TOKEN_LIST[node.modifier].s}${fmtReset} `);
 
-    if (node.variable.count === 1) this.visit(node.variable.first!);
-    else {
+    if (node.variable.count === 1) {
+      this.visit(<AstNode>node.variable.first!);
+    } else {
       write("(");
       this.printAstNodeList(node.variable);
       write(")");
@@ -337,7 +345,7 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitExpressionStatement(node: ExpressionStatement): void {
+  visitExpressionStmt(node: ExpressionStmt): void {
     this.visit(node.expr);
   }
 
@@ -349,19 +357,28 @@ export class AstPrinter extends AstVisitor {
     write("\n", this.#indent, "}");
   }
 
-  visitFunctionDeclaration(node: FunctionDeclaration): void {
+  visitFunctionDecl(node: FunctionDecl, parent?: AstNode): void {
+    if (parent?.isClassOrStruct()) {
+      write("\n", this.#indent);
+    }
+
     this.visitDeclaration(<Declaration>node);
     if (node.isAsync) write(fmtKeyword, "async ", fmtReset);
     write(fmtKeyword, "func", fmtReset);
     write(" ", node.name);
+    if (node.genericParams && node.genericParams.count) {
+      write("[");
+      this.printAstNodeList(node.genericParams, node);
+      write("]");
+    }
+
     this.visit(node.signature, node);
     write(" ");
     if (node.body) {
-      if (node.body.id !== Ast.Block) write("= ");
+      if (node.body.id !== Ast.Block) write("=> ");
       this.visit(node.body);
-    } else {
-      write(";");
     }
+    write("\n");
   }
 
   visitTypeAlias(node: TypeAlias): void {
@@ -373,12 +390,14 @@ export class AstPrinter extends AstVisitor {
       this.printAstNodeList(node.params, node);
       write("]");
     }
-    write(" = ");
-    this.visit(node.aliased);
-    write(";");
+    if (node.aliased) {
+      write(" = ");
+      this.visit(node.aliased);
+    }
+    write("\n");
   }
 
-  visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): void {
+  visitUnionDecl(node: UnionDecl, parent?: AstNode): void {
     this.visitDeclaration(<Declaration>node);
     write(fmtKeyword, "type ", fmtReset);
     this.visit(node.name);
@@ -389,10 +408,10 @@ export class AstPrinter extends AstVisitor {
     }
     write(" = ");
     this.printAstNodeList(node.members, node, " | ");
-    write(";");
+    write("\n");
   }
 
-  visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): void {
+  visitEnumDecl(node: EnumDecl, parent?: AstNode): void {
     this.visitDeclaration(<Declaration>node);
     write(fmtKeyword, "enum ", fmtReset);
     this.visit(node.name);
@@ -420,12 +439,12 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitStructDeclaration(node: StructDeclaration): void {
+  visitStructDecl(node: StructDecl): void {
     this.visitDeclaration(<Declaration>node);
-    write(fmtKeyword, "struct", fmtReset);
+    write(fmtKeyword, "struct ", fmtReset);
     this.visit(node.name);
     if (node.params && node.params.count) {
-      write(" [");
+      write("[");
       this.printAstNodeList(node.params, node);
       write("]");
     }
@@ -434,21 +453,15 @@ export class AstPrinter extends AstVisitor {
       this.visit(node.base);
     }
 
-    if (node.isTupleLike) {
-      write(" (");
-      if (node.fields) this.printAstNodeList(node.fields, node, ", ");
-      write(");");
-    } else {
-      write(" {\n");
-      this.#push();
-      if (node.fields) this.printAstNodeList(node.fields, node, ",\n", true);
-      this.#pop();
-      write("\n");
-      write(this.#indent, "}");
-    }
+    write(" {\n");
+    this.#push();
+    if (node.fields) this.printAstNodeList(node.fields, node, "\n", true);
+    this.#pop();
+    write("\n");
+    write(this.#indent, "}\n");
   }
 
-  visitStructField(node: StructField): void {
+  visitFieldDecl(node: FieldDecl): void {
     if (node.attrs && node.attrs.count === 1) {
       write("@[");
       this.printAstNodeList(node.attrs, node, ", ");
@@ -461,6 +474,11 @@ export class AstPrinter extends AstVisitor {
       write(" = ");
       this.visit(node.value);
     }
+  }
+
+  visitMemberDecl(node: MemberDecl, parent: AstNode): void {
+    if (node.isPrivate) write("- ");
+    this.visit(node.member, parent);
   }
 
   visitTupleType(node: TupleType): void {
@@ -503,6 +521,11 @@ export class AstPrinter extends AstVisitor {
     this.visit(node.pointee);
   }
 
+  visitOptionalType(node: OptionalType): void {
+    this.visit(node.option);
+    write("?");
+  }
+
   visitGenericTypeParam(node: GenericTypeParam): void {
     this.visit(node.name);
     if (node.constraints.count) {
@@ -511,7 +534,7 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitStructFieldExpression(node: StructFieldExpression): void {
+  visitStructFieldExpr(node: StructFieldExpr): void {
     this.visit(node.name);
     write(": ");
     this.visit(node.value);
@@ -532,7 +555,7 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitIfStatement(node: IfStatement): void {
+  visitIfStmt(node: IfStmt): void {
     write(fmtKeyword, "if", fmtReset);
     write(" (");
     this.visit(node.cond);
@@ -544,7 +567,7 @@ export class AstPrinter extends AstVisitor {
     }
   }
 
-  visitWhileStatement(node: WhileStatement): void {
+  visitWhileStmt(node: WhileStmt): void {
     write(fmtKeyword, "while", fmtReset);
     write(" (");
     this.visit(node.cond);
@@ -552,7 +575,7 @@ export class AstPrinter extends AstVisitor {
     this.visit(node.body);
   }
 
-  visitForStatement(node: ForStatement): void {
+  visitForStmt(node: ForStmt): void {
     write(fmtKeyword, "for", fmtReset);
     write(" (");
     this.visit(node.init);
@@ -562,12 +585,12 @@ export class AstPrinter extends AstVisitor {
     this.visit(node.body);
   }
 
-  visitDeferStatement(node: DeferStatement): void {
+  visitDeferStmt(node: DeferStmt): void {
     write(fmtKeyword, "defer ", fmtReset);
     this.visit(node.body);
   }
 
-  visitReturnStatement(node: ReturnStatement): void {
+  visitReturnStmt(node: ReturnStmt): void {
     write(fmtKeyword, "return", fmtReset);
     if (node.value) {
       write(" ");
@@ -576,11 +599,11 @@ export class AstPrinter extends AstVisitor {
     write(";");
   }
 
-  visitContinueStatement(node: AstNode): void {
+  visitContinueStmt(node: AstNode): void {
     write(fmtKeyword, "continue", fmtReset, ";");
   }
 
-  visitBreakStatement(node: AstNode): void {
+  visitBreakStmt(node: AstNode): void {
     write(fmtKeyword, "break", fmtReset, ";");
   }
 }

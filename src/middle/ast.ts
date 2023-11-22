@@ -1,7 +1,7 @@
-import { List, ListItem } from "./list";
-import { Range } from "./source";
+import { List, ListItem } from "../utils/list";
+import { Range } from "../common/source";
 import { Symbol } from "./symbol";
-import { Tok } from "./token";
+import { Tok } from "../frontend/token";
 
 export enum Ast {
   Null,
@@ -33,7 +33,7 @@ export enum Ast {
   TupleExpr,
   StructExpr,
   ArrayExpr,
-  StructFieldExpr,
+  FieldExpr,
   TypedExpr,
   Signature,
   ClosureExpr,
@@ -44,13 +44,16 @@ export enum Ast {
   TypeAlias,
   EnumDecl,
   EnumOption,
+  DeclMember,
   StructDecl,
-  StructField,
+  ClassDecl,
+  DeclField,
   ExpressionStmt,
   TupleType,
   ArrayType,
   FuncType,
   PointerType,
+  OptionalType,
   GTypeParam,
   AttributeValue,
   Attribute,
@@ -74,7 +77,10 @@ export class AstNode extends ListItem {
   public parent?: AstNode = undefined;
   public symbol?: Symbol = undefined;
 
-  constructor(public readonly id: Ast, public range?: Range) {
+  constructor(
+    public readonly id: Ast,
+    public range?: Range,
+  ) {
     super();
   }
 
@@ -84,6 +90,10 @@ export class AstNode extends ListItem {
 
   toString() {
     return Ast[this.id];
+  }
+
+  isClassOrStruct() {
+    return this.id == Ast.ClassDecl || this.id == Ast.StructDecl;
   }
 }
 
@@ -104,7 +114,10 @@ export class Program extends AstNode {
 }
 
 export class PrimitiveType extends AstNode {
-  constructor(public op: Tok, range?: Range) {
+  constructor(
+    public op: Tok,
+    range?: Range,
+  ) {
     super(Ast.Primitive, range);
   }
 
@@ -114,7 +127,10 @@ export class PrimitiveType extends AstNode {
 }
 
 export class BoolLit extends AstNode {
-  constructor(public value: boolean, range?: Range) {
+  constructor(
+    public value: boolean,
+    range?: Range,
+  ) {
     super(Ast.BoolLit, range);
   }
 
@@ -124,7 +140,10 @@ export class BoolLit extends AstNode {
 }
 
 export class IntegerLit extends AstNode {
-  constructor(public value: number, range?: Range) {
+  constructor(
+    public value: number,
+    range?: Range,
+  ) {
     super(Ast.IntLit, range);
   }
 
@@ -134,7 +153,10 @@ export class IntegerLit extends AstNode {
 }
 
 export class FloatLit extends AstNode {
-  constructor(public value: number, range?: Range) {
+  constructor(
+    public value: number,
+    range?: Range,
+  ) {
     super(Ast.FloatLit, range);
   }
 
@@ -144,7 +166,10 @@ export class FloatLit extends AstNode {
 }
 
 export class StringLit extends AstNode {
-  constructor(public value: string, range?: Range) {
+  constructor(
+    public value: string,
+    range?: Range,
+  ) {
     super(Ast.StrLit, range);
   }
 
@@ -154,7 +179,10 @@ export class StringLit extends AstNode {
 }
 
 export class CharacterLit extends AstNode {
-  constructor(public value: string, range?: Range) {
+  constructor(
+    public value: string,
+    range?: Range,
+  ) {
     super(Ast.CharLit, range);
   }
 
@@ -164,7 +192,10 @@ export class CharacterLit extends AstNode {
 }
 
 export class Identifier extends AstNode {
-  constructor(public name: string, range?: Range) {
+  constructor(
+    public name: string,
+    range?: Range,
+  ) {
     super(Ast.Identifier, range);
   }
 
@@ -176,7 +207,7 @@ export class Identifier extends AstNode {
 export class StringExpression extends AstNode {
   constructor(
     public readonly parts: AstNodeList = new AstNodeList(),
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.StrExpr, range);
   }
@@ -191,7 +222,10 @@ export class StringExpression extends AstNode {
 }
 
 export class GroupingExpression extends AstNode {
-  constructor(public expr: AstNode, range?: Range) {
+  constructor(
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.GroupingExpr, range);
   }
 
@@ -200,224 +234,252 @@ export class GroupingExpression extends AstNode {
   }
 }
 
-export class PrefixExpression extends AstNode {
-  constructor(public op: Operation, public expr: AstNode, range?: Range) {
+export class PrefixExpr extends AstNode {
+  constructor(
+    public op: Operation,
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.PrefixExpr, range);
   }
 
   clone(): AstNode {
-    return new PrefixExpression(
-      { ...{ ...this.op } },
-      this.expr.clone(),
-      this.range
-    );
+    return new PrefixExpr({ ...{ ...this.op } }, this.expr.clone(), this.range);
   }
 }
 
-export class PostfixExpression extends AstNode {
-  constructor(public op: Operation, public expr: AstNode, range?: Range) {
+export class PostfixExpr extends AstNode {
+  constructor(
+    public op: Operation,
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.PostfixExpr, range);
   }
 
   clone(): AstNode {
-    return new PostfixExpression({ ...this.op }, this.expr.clone(), this.range);
+    return new PostfixExpr({ ...this.op }, this.expr.clone(), this.range);
   }
 }
 
-export class UnaryExpression extends AstNode {
-  constructor(public op: Operation, public expr: AstNode, range?: Range) {
+export class UnaryExpr extends AstNode {
+  constructor(
+    public op: Operation,
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.UnaryExpr, range);
   }
 
   clone(): AstNode {
-    return new UnaryExpression({ ...this.op }, this.expr.clone(), this.range);
+    return new UnaryExpr({ ...this.op }, this.expr.clone(), this.range);
   }
 }
 
-export class BinaryExpression extends AstNode {
+export class BinaryExpr extends AstNode {
   constructor(
     public lhs: AstNode,
     public op: Operation,
     public rhs: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.BinaryExpr, range);
   }
 
   clone(): AstNode {
-    return new BinaryExpression(
+    return new BinaryExpr(
       this.lhs.clone(),
       { ...this.op },
       this.rhs.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class TernaryExpression extends AstNode {
+export class TernaryExpr extends AstNode {
   constructor(
     public cond: AstNode,
-    public ifTrue: AstNode,
     public ifFalse: AstNode,
-    range?: Range
+    public ifTrue?: AstNode,
+    range?: Range,
   ) {
     super(Ast.TernaryExpr, range);
   }
 
   clone(): AstNode {
-    return new TernaryExpression(
+    return new TernaryExpr(
       this.cond.clone(),
-      this.ifTrue.clone(),
       this.ifFalse.clone(),
-      this.range
+      this.ifTrue?.clone(),
+      this.range,
     );
   }
 }
 
-export class AssignmentExpression extends AstNode {
+export class AssignmentExpr extends AstNode {
   constructor(
     public lhs: AstNode,
     public op: Operation,
     public rhs: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.AssignmentExpr, range);
   }
 
   clone(): AstNode {
-    return new AssignmentExpression(
+    return new AssignmentExpr(
       this.lhs.clone(),
       { ...this.op },
       this.rhs.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class CallExpression extends AstNode {
-  constructor(public callee: AstNode, public args: AstNodeList, range?: Range) {
+export class CallExpr extends AstNode {
+  constructor(
+    public callee: AstNode,
+    public args: AstNodeList,
+    range?: Range,
+  ) {
     super(Ast.CallExpr, range);
   }
 
   clone(): AstNode {
-    const expr = new CallExpression(
+    const expr = new CallExpr(
       this.callee.clone(),
       this.args.clone(),
-      this.range
+      this.range,
     );
 
     return expr;
   }
 }
 
-export class MacroCallExpression extends AstNode {
+export class MacroCallExpr extends AstNode {
   constructor(
     public readonly callee: AstNode,
     public readonly args?: AstNodeList,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.MacroCallExpr, range);
   }
 
   clone(): AstNode {
-    const expr = new MacroCallExpression(
+    const expr = new MacroCallExpr(
       this.callee.clone(),
       this.args?.clone(),
-      this.range
+      this.range,
     );
 
     return expr;
   }
 }
 
-export class SpreadExpression extends AstNode {
-  constructor(public expr: AstNode, range?: Range) {
+export class SpreadExpr extends AstNode {
+  constructor(
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.SpreadExpr, range);
   }
 
   clone(): AstNode {
-    return new SpreadExpression(this.expr.clone(), this.range);
+    return new SpreadExpr(this.expr.clone(), this.range);
   }
 }
 
-export class YieldExpression extends AstNode {
-  constructor(public expr: AstNode, public starred?: boolean, range?: Range) {
+export class YieldExpr extends AstNode {
+  constructor(
+    public expr: AstNode,
+    public starred?: boolean,
+    range?: Range,
+  ) {
     super(Ast.YieldExpr, range);
   }
 
   clone(): AstNode {
-    return new YieldExpression(this.expr.clone(), this.starred, this.range);
+    return new YieldExpr(this.expr.clone(), this.starred, this.range);
   }
 }
 
-export class NewExpression extends AstNode {
-  constructor(public expr: AstNode, range?: Range) {
+export class NewExpr extends AstNode {
+  constructor(
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.NewExpr, range);
   }
 
   clone(): AstNode {
-    return new NewExpression(this.expr.clone(), this.range);
+    return new NewExpr(this.expr.clone(), this.range);
   }
 }
 
-export class BracketExpression extends AstNode {
+export class BracketExpr extends AstNode {
   constructor(
     public target: AstNode,
     public indices: AstNodeList,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.BracketExpr, range);
   }
 
   clone(): AstNode {
-    return new BracketExpression(
+    return new BracketExpr(
       this.target.clone(),
       this.indices.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
 // .a
-export class DotExpression extends AstNode {
-  constructor(public expr: AstNode, range?: Range) {
+export class DotExpr extends AstNode {
+  constructor(
+    public expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.DotExpr, range);
   }
 
   clone(): AstNode {
-    return new DotExpression(this.expr.clone(), this.range);
+    return new DotExpr(this.expr.clone(), this.range);
   }
 }
 
-export class MemberAccessExpression extends AstNode {
+export class MemberExpr extends AstNode {
   constructor(
     public target: AstNode,
     public op: Operation,
     public member: AstNode,
     range?: Range,
-    public dot?: boolean
+    public dot?: boolean,
   ) {
     super(Ast.MemberAccessExpr, range);
   }
 
   clone(): AstNode {
-    return new MemberAccessExpression(
+    return new MemberExpr(
       this.target.clone(),
       { ...this.op },
       this.member.clone(),
       this.range,
-      this.dot
+      this.dot,
     );
   }
 }
 
-export class TupleExpression extends AstNode {
-  constructor(public elements: AstNodeList, range?: Range) {
+export class TupleExpr extends AstNode {
+  constructor(
+    public elements: AstNodeList,
+    range?: Range,
+  ) {
     super(Ast.TupleExpr, range);
   }
 
   clone(): AstNode {
-    return new TupleExpression(this.elements.clone(), this.range);
+    return new TupleExpr(this.elements.clone(), this.range);
   }
 
   add(node: AstNode) {
@@ -425,21 +487,17 @@ export class TupleExpression extends AstNode {
   }
 }
 
-export class StructExpression extends AstNode {
+export class StructExpr extends AstNode {
   constructor(
     public readonly lhs: AstNode,
     public readonly fields: AstNodeList,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.StructExpr, range);
   }
 
   clone(): AstNode {
-    return new StructExpression(
-      this.lhs.clone(),
-      this.fields.clone(),
-      this.range
-    );
+    return new StructExpr(this.lhs.clone(), this.fields.clone(), this.range);
   }
 
   add(node: AstNode) {
@@ -447,21 +505,27 @@ export class StructExpression extends AstNode {
   }
 }
 
-export class StructFieldExpression extends AstNode {
+export class StructFieldExpr extends AstNode {
+  #name: AstNode;
   constructor(
-    public readonly name: AstNode,
+    name: AstNode,
     public readonly value: AstNode,
-    range?: Range
+    range?: Range,
   ) {
-    super(Ast.StructFieldExpr, range);
+    super(Ast.FieldExpr, range);
+    this.#name = name;
   }
 
   clone(): AstNode {
-    return new StructFieldExpression(
-      this.name.clone(),
+    return new StructFieldExpr(
+      this.#name.clone(),
       this.value.clone(),
-      this.range
+      this.range,
     );
+  }
+
+  get name() {
+    return <Identifier>this.#name;
   }
 }
 
@@ -469,7 +533,7 @@ export class AttributeValue extends AstNode {
   constructor(
     public readonly name: AstNode,
     public readonly value: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.AttributeValue, range);
   }
@@ -478,7 +542,7 @@ export class AttributeValue extends AstNode {
     return new AttributeValue(
       this.name.clone(),
       this.value.clone(),
-      this.range
+      this.range,
     );
   }
 }
@@ -487,7 +551,7 @@ export class Attribute extends AstNode {
   constructor(
     public readonly name: AstNode,
     public readonly values: AstNodeList = new AstNodeList(),
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.Attribute, range);
   }
@@ -497,13 +561,16 @@ export class Attribute extends AstNode {
   }
 }
 
-export class ArrayExpression extends AstNode {
-  constructor(public elements: AstNodeList, range?: Range) {
+export class ArrayExpr extends AstNode {
+  constructor(
+    public elements: AstNodeList,
+    range?: Range,
+  ) {
     super(Ast.ArrayExpr, range);
   }
 
   clone(): AstNode {
-    return new ArrayExpression(this.elements.clone(), this.range);
+    return new ArrayExpr(this.elements.clone(), this.range);
   }
 
   add(node: AstNode) {
@@ -511,47 +578,55 @@ export class ArrayExpression extends AstNode {
   }
 }
 
-export class SignatureExpression extends AstNode {
-  constructor(public params: AstNode, public ret?: AstNode, range?: Range) {
+export class SignatureExpr extends AstNode {
+  constructor(
+    public params: AstNode,
+    public ret?: AstNode,
+    range?: Range,
+  ) {
     super(Ast.Signature, range);
   }
 
   clone(): AstNode {
-    return new SignatureExpression(
+    return new SignatureExpr(
       this.params.clone(),
       this.ret?.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class ClosureExpression extends AstNode {
+export class ClosureExpr extends AstNode {
   constructor(
     public signature: AstNode,
     public body: AstNode,
     public isAsync?: boolean,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.ClosureExpr, range);
   }
 
   clone(): AstNode {
-    return new ClosureExpression(
+    return new ClosureExpr(
       this.signature.clone(),
       this.body.clone(),
       this.isAsync,
-      this.range
+      this.range,
     );
   }
 }
 
-export class TypedExpression extends AstNode {
-  constructor(public expr: AstNode, public type: AstNode, range?: Range) {
+export class TypedExpr extends AstNode {
+  constructor(
+    public expr: AstNode,
+    public type: AstNode,
+    range?: Range,
+  ) {
     super(Ast.TypedExpr, range);
   }
 
   clone(): AstNode {
-    return new TypedExpression(this.expr.clone(), this.type.clone());
+    return new TypedExpr(this.expr.clone(), this.type.clone());
   }
 }
 
@@ -561,13 +636,13 @@ export class Declaration extends AstNode {
     public readonly isExport?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
-    public attrs?: AstNodeList
+    public attrs?: AstNodeList,
   ) {
     super(id, range);
   }
 }
 
-export class VariableDeclaration extends Declaration {
+export class VariableDecl extends Declaration {
   constructor(
     public modifier: Tok,
     public variable: AstNodeList,
@@ -575,25 +650,25 @@ export class VariableDeclaration extends Declaration {
     public init?: AstNode,
     public isExport?: boolean,
     range?: Range,
-    attrs?: AstNodeList
+    attrs?: AstNodeList,
   ) {
     super(Ast.VariableDecl, isExport, false, range, attrs);
   }
 
   clone(): AstNode {
-    return new VariableDeclaration(
+    return new VariableDecl(
       this.modifier,
       this.variable.clone(),
       this.type?.clone(),
       this.init?.clone(),
       this.isExport,
       this.range,
-      this.attrs?.clone()
+      this.attrs?.clone(),
     );
   }
 }
 
-export class FunctionDeclaration extends Declaration {
+export class FunctionDecl extends Declaration {
   constructor(
     public readonly name: string,
     public readonly signature: AstNode,
@@ -602,13 +677,13 @@ export class FunctionDeclaration extends Declaration {
     public readonly genericParams?: AstNodeList,
     public readonly isExport?: boolean,
     range?: Range,
-    attrs?: AstNodeList
+    attrs?: AstNodeList,
   ) {
     super(Ast.FuncDecl, isExport, false, range, attrs);
   }
 
   clone(): AstNode {
-    return new FunctionDeclaration(
+    return new FunctionDecl(
       this.name,
       this.signature.clone(),
       this.body?.clone(),
@@ -616,7 +691,7 @@ export class FunctionDeclaration extends Declaration {
       this.genericParams?.clone(),
       this.isExport,
       this.range,
-      this.attrs?.clone()
+      this.attrs?.clone(),
     );
   }
 }
@@ -629,7 +704,7 @@ export class TypeAlias extends Declaration {
     public readonly isExport?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
-    attrs?: AstNodeList
+    attrs?: AstNodeList,
   ) {
     super(Ast.TypeAlias, isExport, isOpaque, range, attrs);
   }
@@ -642,12 +717,12 @@ export class TypeAlias extends Declaration {
       this.isExport,
       this.isOpaque,
       this.range,
-      this.attrs?.clone()
+      this.attrs?.clone(),
     );
   }
 }
 
-export class UnionDeclaration extends Declaration {
+export class UnionDecl extends Declaration {
   constructor(
     public readonly name: AstNode,
     public readonly members: AstNodeList,
@@ -655,20 +730,20 @@ export class UnionDeclaration extends Declaration {
     public readonly isExport?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
-    attrs?: AstNodeList
+    attrs?: AstNodeList,
   ) {
     super(Ast.UnionDecl, isExport, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
-    return new UnionDeclaration(
+    return new UnionDecl(
       this.name,
       this.members.clone(),
       this.params?.clone(),
       this.isExport,
       this.isOpaque,
       this.range,
-      this.attrs?.clone()
+      this.attrs?.clone(),
     );
   }
 }
@@ -678,22 +753,22 @@ export class EnumOption extends AstNode {
     public readonly name: AstNode,
     public readonly value?: AstNode,
     public readonly attrs?: AstNodeList,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.EnumOption, range);
   }
 
   clone(): AstNode {
     return new EnumOption(
-      this.name,
-      this.value,
+      this.name?.clone(),
+      this.value?.clone(),
       this.attrs?.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class EnumDeclaration extends Declaration {
+export class EnumDecl extends Declaration {
   constructor(
     public readonly name: AstNode,
     public readonly options: AstNodeList,
@@ -701,89 +776,133 @@ export class EnumDeclaration extends Declaration {
     public readonly isExport?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
-    attrs?: AstNodeList
+    attrs?: AstNodeList,
   ) {
     super(Ast.EnumDecl, isExport, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
-    return new EnumDeclaration(
+    return new EnumDecl(
       this.name,
       this.options.clone(),
       this.base?.clone(),
       this.isExport,
       this.isOpaque,
       this.range,
-      this.attrs?.clone()
+      this.attrs?.clone(),
     );
   }
 }
 
-export class StructField extends AstNode {
+export class FieldDecl extends AstNode {
   constructor(
     public readonly name: AstNode,
     public readonly type: AstNode,
     public readonly value?: AstNode,
+    range?: Range,
     public readonly attrs?: AstNodeList,
-    range?: Range
   ) {
-    super(Ast.StructField, range);
+    super(Ast.DeclField, range);
   }
 
   clone(): AstNode {
-    return new EnumOption(
-      this.name,
-      this.value,
+    return new FieldDecl(
+      this.name.clone(),
+      this.type.clone(),
+      this.value?.clone(),
+      this.range,
       this.attrs?.clone(),
-      this.range
     );
   }
 }
 
-export class StructDeclaration extends Declaration {
+export class MemberDecl extends AstNode {
+  constructor(
+    public readonly member: AstNode,
+    public readonly isPrivate?: boolean,
+    range?: Range,
+  ) {
+    super(Ast.DeclMember, range);
+  }
+
+  clone(): AstNode {
+    return new MemberDecl(this.member.clone(), this.isPrivate, this.range);
+  }
+}
+
+export class StructDecl extends Declaration {
   constructor(
     public readonly name: AstNode,
     public readonly fields?: AstNodeList,
     public readonly params?: AstNodeList,
     public readonly base?: AstNode,
-    public readonly isTupleLike?: boolean,
     public readonly isExport?: boolean,
     public readonly isOpaque?: boolean,
     range?: Range,
-    attrs?: AstNodeList
+    attrs?: AstNodeList,
   ) {
     super(Ast.StructDecl, isExport, isOpaque, range, attrs);
   }
 
   clone(): AstNode {
-    return new StructDeclaration(
+    return new StructDecl(
       this.name,
       this.fields?.clone(),
       this.params?.clone(),
       this.base?.clone(),
-      this.isTupleLike,
       this.isExport,
       this.isOpaque,
       this.range,
-      this.attrs?.clone()
+      this.attrs?.clone(),
     );
   }
 }
 
-export class ExpressionStatement extends AstNode {
-  constructor(public readonly expr: AstNode, range?: Range) {
+export class ClassDecl extends Declaration {
+  constructor(
+    public readonly name: AstNode,
+    public readonly members?: AstNodeList,
+    public readonly params?: AstNodeList,
+    public readonly base?: AstNode,
+    public readonly isExport?: boolean,
+    public readonly isOpaque?: boolean,
+    range?: Range,
+    attrs?: AstNodeList,
+  ) {
+    super(Ast.StructDecl, isExport, isOpaque, range, attrs);
+  }
+
+  clone(): AstNode {
+    return new ClassDecl(
+      this.name,
+      this.members?.clone(),
+      this.params?.clone(),
+      this.base?.clone(),
+      this.isExport,
+      this.isOpaque,
+      this.range,
+      this.attrs?.clone(),
+    );
+  }
+}
+
+export class ExpressionStmt extends AstNode {
+  constructor(
+    public readonly expr: AstNode,
+    range?: Range,
+  ) {
     super(Ast.ExpressionStmt, range);
   }
 
   clone(): AstNode {
-    return new ExpressionStatement(this.expr.clone(), this.range);
+    return new ExpressionStmt(this.expr.clone(), this.range);
   }
 }
 
 export class CodeBlock extends AstNode {
   constructor(
     public readonly nodes: AstNodeList = new AstNodeList(),
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.Block, range);
   }
@@ -798,7 +917,10 @@ export class CodeBlock extends AstNode {
 }
 
 export class TupleType extends AstNode {
-  constructor(public readonly elements: AstNodeList, range?: Range) {
+  constructor(
+    public readonly elements: AstNodeList,
+    range?: Range,
+  ) {
     super(Ast.TupleType, range);
   }
 
@@ -812,7 +934,10 @@ export class TupleType extends AstNode {
 }
 
 export class FunctionParams extends AstNode {
-  constructor(public readonly params: AstNodeList, range?: Range) {
+  constructor(
+    public readonly params: AstNodeList,
+    range?: Range,
+  ) {
     super(Ast.FuncParams, range);
   }
 
@@ -830,7 +955,7 @@ export class FunctionParam extends AstNode {
     public readonly name: AstNode,
     public readonly type: AstNode,
     public readonly isVariadic?: boolean,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.FuncParam, range);
   }
@@ -840,7 +965,7 @@ export class FunctionParam extends AstNode {
       this.name.clone(),
       this.type.clone(),
       this.isVariadic,
-      this.range
+      this.range,
     );
   }
 }
@@ -849,7 +974,7 @@ export class ArrayType extends AstNode {
   constructor(
     public readonly elementType: AstNode,
     public readonly size?: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.ArrayType, range);
   }
@@ -858,7 +983,7 @@ export class ArrayType extends AstNode {
     return new ArrayType(
       this.elementType.clone(),
       this.size?.clone(),
-      this.range
+      this.range,
     );
   }
 }
@@ -867,9 +992,8 @@ export class FunctionType extends AstNode {
   constructor(
     public readonly params: AstNode,
     public readonly ret: AstNode,
-    public readonly typeParams: AstNodeList = new AstNodeList(),
     public readonly isAsync?: boolean,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.FuncType, range);
   }
@@ -878,9 +1002,8 @@ export class FunctionType extends AstNode {
     return new FunctionType(
       this.params.clone(),
       this.ret.clone(),
-      this.typeParams.clone(),
       this.isAsync,
-      this.range
+      this.range,
     );
   }
 }
@@ -889,7 +1012,7 @@ export class PointerType extends AstNode {
   constructor(
     public readonly pointee: AstNode,
     public readonly isConst?: boolean,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.PointerType, range);
   }
@@ -899,11 +1022,24 @@ export class PointerType extends AstNode {
   }
 }
 
+export class OptionalType extends AstNode {
+  constructor(
+    public readonly option: AstNode,
+    range?: Range,
+  ) {
+    super(Ast.OptionalType, range);
+  }
+
+  clone(): AstNode {
+    return new OptionalType(this.option.clone(), this.range);
+  }
+}
+
 export class GenericTypeParam extends AstNode {
   constructor(
     public readonly name: AstNode,
     public readonly constraints: AstNodeList = new AstNodeList(),
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.GTypeParam, range);
   }
@@ -912,82 +1048,88 @@ export class GenericTypeParam extends AstNode {
     return new GenericTypeParam(
       this.name.clone(),
       this.constraints.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class IfStatement extends AstNode {
+export class IfStmt extends AstNode {
   constructor(
     public readonly cond: AstNode,
     public readonly ifTrue: AstNode,
     public readonly ifFalse?: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.IfStmt, range);
   }
 
   clone(): AstNode {
-    return new IfStatement(
+    return new IfStmt(
       this.cond.clone(),
       this.ifTrue.clone(),
       this.ifFalse?.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class WhileStatement extends AstNode {
+export class WhileStmt extends AstNode {
   constructor(
     public readonly cond: AstNode,
     public readonly body: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.WhileStmt, range);
   }
 
   clone(): AstNode {
-    return new WhileStatement(this.cond.clone(), this.body.clone(), this.range);
+    return new WhileStmt(this.cond.clone(), this.body.clone(), this.range);
   }
 }
 
-export class ForStatement extends AstNode {
+export class ForStmt extends AstNode {
   constructor(
     public readonly init: AstNode,
     public readonly expr: AstNode,
     public readonly body: AstNode,
-    range?: Range
+    range?: Range,
   ) {
     super(Ast.ForStmt, range);
   }
 
   clone(): AstNode {
-    return new ForStatement(
+    return new ForStmt(
       this.init.clone(),
       this.expr.clone(),
       this.body.clone(),
-      this.range
+      this.range,
     );
   }
 }
 
-export class DeferStatement extends AstNode {
-  constructor(public readonly body: AstNode, range?: Range) {
+export class DeferStmt extends AstNode {
+  constructor(
+    public readonly body: AstNode,
+    range?: Range,
+  ) {
     super(Ast.DeferStmt, range);
   }
 
   clone(): AstNode {
-    return new DeferStatement(this.body.clone(), this.range);
+    return new DeferStmt(this.body.clone(), this.range);
   }
 }
 
-export class ReturnStatement extends AstNode {
-  constructor(public readonly value?: AstNode, range?: Range) {
+export class ReturnStmt extends AstNode {
+  constructor(
+    public readonly value?: AstNode,
+    range?: Range,
+  ) {
     super(Ast.ReturnStmt, range);
   }
 
   clone(): AstNode {
-    return new ReturnStatement(this.value?.clone(), this.range);
+    return new ReturnStmt(this.value?.clone(), this.range);
   }
 }
 
@@ -995,7 +1137,7 @@ export abstract class AstVisitor<T = void> {
   dispatch: {
     [TNode in Ast as AstNode["id"]]: (
       node: AstNode,
-      parent?: AstNode
+      parent?: AstNode,
     ) => T | void;
   } = {
     [Ast.Null]: (curr: AstNode, parent?: AstNode) =>
@@ -1023,65 +1165,69 @@ export abstract class AstVisitor<T = void> {
     [Ast.GroupingExpr]: (curr: AstNode, parent?: AstNode) =>
       this.visitGroupingExpression(<GroupingExpression>curr, parent),
     [Ast.PrefixExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitPrefixExpression(<PrefixExpression>curr, parent),
+      this.visitPrefixExpr(<PrefixExpr>curr, parent),
     [Ast.PostfixExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitPostfixExpression(<PostfixExpression>curr, parent),
+      this.visitPostfixExpr(<PostfixExpr>curr, parent),
     [Ast.UnaryExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitUnaryExpression(<UnaryExpression>curr, parent),
+      this.visitUnaryExpr(<UnaryExpr>curr, parent),
     [Ast.BinaryExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitBinaryExpression(<BinaryExpression>curr, parent),
+      this.visitBinaryExpr(<BinaryExpr>curr, parent),
     [Ast.TernaryExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitTernaryExpression(<TernaryExpression>curr, parent),
+      this.visitTernaryExpr(<TernaryExpr>curr, parent),
     [Ast.AssignmentExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitAssignmentExpression(<AssignmentExpression>curr, parent),
+      this.visitAssignmentExpr(<AssignmentExpr>curr, parent),
     [Ast.CallExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitCallExpression(<CallExpression>curr, parent),
+      this.visitCallExpr(<CallExpr>curr, parent),
     [Ast.MacroCallExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitMacroCallExpression(<MacroCallExpression>curr, parent),
+      this.visitMacroCallExpr(<MacroCallExpr>curr, parent),
     [Ast.SpreadExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitSpreadExpression(<SpreadExpression>curr, parent),
+      this.visitSpreadExpr(<SpreadExpr>curr, parent),
     [Ast.YieldExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitYieldExpression(<YieldExpression>curr, parent),
+      this.visitYieldExpr(<YieldExpr>curr, parent),
     [Ast.NewExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitNewExpression(<NewExpression>curr, parent),
+      this.visitNewExpr(<NewExpr>curr, parent),
     [Ast.BracketExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitBracketExpression(<BracketExpression>curr, parent),
+      this.visitBracketExpr(<BracketExpr>curr, parent),
     [Ast.DotExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitDotExpression(<DotExpression>curr, parent),
+      this.visitDotExpr(<DotExpr>curr, parent),
     [Ast.MemberAccessExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitMemberAccessExpression(<MemberAccessExpression>curr, parent),
+      this.visitMemberExpr(<MemberExpr>curr, parent),
     [Ast.TupleExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitTupleExpression(<TupleExpression>curr, parent),
-    [Ast.StructFieldExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitStructFieldExpression(<StructFieldExpression>curr, parent),
+      this.visitTupleExpr(<TupleExpr>curr, parent),
+    [Ast.FieldExpr]: (curr: AstNode, parent?: AstNode) =>
+      this.visitStructFieldExpr(<StructFieldExpr>curr, parent),
     [Ast.StructExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitStructExpression(<StructExpression>curr, parent),
+      this.visitStructExpr(<StructExpr>curr, parent),
     [Ast.ArrayExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitArrayLitExpression(<ArrayExpression>curr, parent),
+      this.visitArrayExpr(<ArrayExpr>curr, parent),
     [Ast.Signature]: (curr: AstNode, parent?: AstNode) =>
-      this.visitSignatureExpression(<SignatureExpression>curr, parent),
+      this.visitSignatureExpr(<SignatureExpr>curr, parent),
     [Ast.ClosureExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitClosureExpression(<ClosureExpression>curr, parent),
+      this.visitClosureExpr(<ClosureExpr>curr, parent),
     [Ast.TypedExpr]: (curr: AstNode, parent?: AstNode) =>
-      this.visitTypedExpression(<TypedExpression>curr, parent),
+      this.visitTypedExpr(<TypedExpr>curr, parent),
     [Ast.VariableDecl]: (curr: AstNode, parent?: AstNode) =>
-      this.visitVariableDeclaration(<VariableDeclaration>curr, parent),
+      this.visitVariableDecl(<VariableDecl>curr, parent),
     [Ast.FuncDecl]: (curr: AstNode, parent?: AstNode) =>
-      this.visitFunctionDeclaration(<FunctionDeclaration>curr, parent),
+      this.visitFunctionDecl(<FunctionDecl>curr, parent),
     [Ast.TypeAlias]: (curr: AstNode, parent?: AstNode) =>
       this.visitTypeAlias(<TypeAlias>curr, parent),
     [Ast.UnionDecl]: (curr: AstNode, parent?: AstNode) =>
-      this.visitUnionDeclaration(<UnionDeclaration>curr, parent),
+      this.visitUnionDecl(<UnionDecl>curr, parent),
     [Ast.EnumDecl]: (curr: AstNode, parent?: AstNode) =>
-      this.visitEnumDeclaration(<EnumDeclaration>curr, parent),
+      this.visitEnumDecl(<EnumDecl>curr, parent),
     [Ast.EnumOption]: (curr: AstNode, parent?: AstNode) =>
       this.visitEnumOption(<EnumOption>curr, parent),
     [Ast.StructDecl]: (curr: AstNode, parent?: AstNode) =>
-      this.visitStructDeclaration(<StructDeclaration>curr, parent),
-    [Ast.StructField]: (curr: AstNode, parent?: AstNode) =>
-      this.visitStructField(<StructField>curr, parent),
+      this.visitStructDecl(<StructDecl>curr, parent),
+    [Ast.DeclField]: (curr: AstNode, parent?: AstNode) =>
+      this.visitFieldDecl(<FieldDecl>curr, parent),
+    [Ast.ClassDecl]: (curr: AstNode, parent?: AstNode) =>
+      this.visitClassDecl(<ClassDecl>curr, parent),
+    [Ast.DeclMember]: (curr: AstNode, parent?: AstNode) =>
+      this.visitMemberDecl(<MemberDecl>curr, parent),
     [Ast.ExpressionStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitExpressionStatement(<ExpressionStatement>curr, parent),
+      this.visitExpressionStmt(<ExpressionStmt>curr, parent),
     [Ast.Block]: (curr: AstNode, parent?: AstNode) =>
       this.visitCodeBlock(<CodeBlock>curr, parent),
     [Ast.TupleType]: (curr: AstNode, parent?: AstNode) =>
@@ -1096,6 +1242,8 @@ export abstract class AstVisitor<T = void> {
       this.visitFuncParam(<FunctionParam>curr, parent),
     [Ast.PointerType]: (curr: AstNode, parent?: AstNode) =>
       this.visitPointerType(<PointerType>curr, parent),
+    [Ast.OptionalType]: (curr: AstNode, parent?: AstNode) =>
+      this.visitOptionalType(<OptionalType>curr, parent),
     [Ast.GTypeParam]: (curr: AstNode, parent?: AstNode) =>
       this.visitGenericTypeParam(<GenericTypeParam>curr, parent),
     [Ast.AttributeValue]: (curr: AstNode, parent?: AstNode) =>
@@ -1103,19 +1251,19 @@ export abstract class AstVisitor<T = void> {
     [Ast.Attribute]: (curr: AstNode, parent?: AstNode) =>
       this.visitAttribute(<Attribute>curr, parent),
     [Ast.IfStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitIfStatement(<IfStatement>curr, parent),
+      this.visitIfStmt(<IfStmt>curr, parent),
     [Ast.WhileStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitWhileStatement(<WhileStatement>curr, parent),
+      this.visitWhileStmt(<WhileStmt>curr, parent),
     [Ast.ForStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitForStatement(<ForStatement>curr, parent),
+      this.visitForStmt(<ForStmt>curr, parent),
     [Ast.DeferStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitDeferStatement(<DeferStatement>curr, parent),
+      this.visitDeferStmt(<DeferStmt>curr, parent),
     [Ast.ReturnStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitReturnStatement(<ReturnStatement>curr, parent),
+      this.visitReturnStmt(<ReturnStmt>curr, parent),
     [Ast.ContinueStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitContinueStatement(<AstNode>curr, parent),
+      this.visitContinueStmt(<AstNode>curr, parent),
     [Ast.BreakStmt]: (curr: AstNode, parent?: AstNode) =>
-      this.visitContinueStatement(<AstNode>curr, parent),
+      this.visitContinueStmt(<AstNode>curr, parent),
   };
 
   visit(node: AstNode, parent?: AstNode): T | void {
@@ -1135,58 +1283,39 @@ export abstract class AstVisitor<T = void> {
   visitStringExpression(node: StringExpression, parent?: AstNode): T | void {}
   visitGroupingExpression(
     node: GroupingExpression,
-    parent?: AstNode
+    parent?: AstNode,
   ): T | void {}
-  visitPrefixExpression(node: PrefixExpression, parent?: AstNode): T | void {}
-  visitPostfixExpression(node: PostfixExpression, parent?: AstNode): T | void {}
-  visitUnaryExpression(node: UnaryExpression, parent?: AstNode): T | void {}
-  visitBinaryExpression(node: BinaryExpression, parent?: AstNode): T | void {}
-  visitTernaryExpression(node: TernaryExpression, parent?: AstNode): T | void {}
-  visitAssignmentExpression(
-    node: AssignmentExpression,
-    parent?: AstNode
-  ): T | void {}
-  visitCallExpression(node: CallExpression, parent?: AstNode): T | void {}
-  visitMacroCallExpression(
-    node: MacroCallExpression,
-    parent?: AstNode
-  ): T | void {}
-  visitSpreadExpression(node: SpreadExpression, parent?: AstNode): T | void {}
-  visitYieldExpression(node: YieldExpression, parent?: AstNode): T | void {}
-  visitNewExpression(node: NewExpression, parent?: AstNode): T | void {}
-  visitBracketExpression(node: BracketExpression, parent?: AstNode): T | void {}
-  visitDotExpression(node: DotExpression, parent?: AstNode): T | void {}
-  visitMemberAccessExpression(
-    node: MemberAccessExpression,
-    parent?: AstNode
-  ): T | void {}
-  visitTupleExpression(node: TupleExpression, parent?: AstNode): T | void {}
-  visitStructExpression(node: StructExpression, parent?: AstNode): T | void {}
-  visitArrayLitExpression(node: ArrayExpression, parent?: AstNode): T | void {}
-  visitSignatureExpression(
-    node: SignatureExpression,
-    parent?: AstNode
-  ): T | void {}
-  visitClosureExpression(node: ClosureExpression, parent?: AstNode): T | void {}
-  visitTypedExpression(node: TypedExpression, parent?: AstNode): T | void {}
-  visitVariableDeclaration(
-    node: VariableDeclaration,
-    parent?: AstNode
-  ): T | void {}
-  visitFunctionDeclaration(
-    node: FunctionDeclaration,
-    parent?: AstNode
-  ): T | void {}
+  visitPrefixExpr(node: PrefixExpr, parent?: AstNode): T | void {}
+  visitPostfixExpr(node: PostfixExpr, parent?: AstNode): T | void {}
+  visitUnaryExpr(node: UnaryExpr, parent?: AstNode): T | void {}
+  visitBinaryExpr(node: BinaryExpr, parent?: AstNode): T | void {}
+  visitTernaryExpr(node: TernaryExpr, parent?: AstNode): T | void {}
+  visitAssignmentExpr(node: AssignmentExpr, parent?: AstNode): T | void {}
+  visitCallExpr(node: CallExpr, parent?: AstNode): T | void {}
+  visitMacroCallExpr(node: MacroCallExpr, parent?: AstNode): T | void {}
+  visitSpreadExpr(node: SpreadExpr, parent?: AstNode): T | void {}
+  visitYieldExpr(node: YieldExpr, parent?: AstNode): T | void {}
+  visitNewExpr(node: NewExpr, parent?: AstNode): T | void {}
+  visitBracketExpr(node: BracketExpr, parent?: AstNode): T | void {}
+  visitDotExpr(node: DotExpr, parent?: AstNode): T | void {}
+  visitMemberExpr(node: MemberExpr, parent?: AstNode): T | void {}
+  visitTupleExpr(node: TupleExpr, parent?: AstNode): T | void {}
+  visitStructExpr(node: StructExpr, parent?: AstNode): T | void {}
+  visitArrayExpr(node: ArrayExpr, parent?: AstNode): T | void {}
+  visitSignatureExpr(node: SignatureExpr, parent?: AstNode): T | void {}
+  visitClosureExpr(node: ClosureExpr, parent?: AstNode): T | void {}
+  visitTypedExpr(node: TypedExpr, parent?: AstNode): T | void {}
+  visitVariableDecl(node: VariableDecl, parent?: AstNode): T | void {}
+  visitFunctionDecl(node: FunctionDecl, parent?: AstNode): T | void {}
   visitTypeAlias(node: TypeAlias, parent?: AstNode): T | void {}
-  visitUnionDeclaration(node: UnionDeclaration, parent?: AstNode): T | void {}
-  visitEnumDeclaration(node: EnumDeclaration, parent?: AstNode): T | void {}
+  visitUnionDecl(node: UnionDecl, parent?: AstNode): T | void {}
+  visitEnumDecl(node: EnumDecl, parent?: AstNode): T | void {}
   visitEnumOption(node: EnumOption, parent?: AstNode): T | void {}
-  visitStructDeclaration(node: StructDeclaration, parent?: AstNode): T | void {}
-  visitStructField(node: StructField, parent?: AstNode): T | void {}
-  visitExpressionStatement(
-    node: ExpressionStatement,
-    parent?: AstNode
-  ): T | void {}
+  visitStructDecl(node: StructDecl, parent?: AstNode): T | void {}
+  visitFieldDecl(node: FieldDecl, parent?: AstNode): T | void {}
+  visitClassDecl(node: ClassDecl, parent?: AstNode): T | void {}
+  visitMemberDecl(node: MemberDecl, parent?: AstNode): T | void {}
+  visitExpressionStmt(node: ExpressionStmt, parent?: AstNode): T | void {}
   visitCodeBlock(node: CodeBlock, parent?: AstNode): T | void {}
   visitTupleType(node: TupleType, parent?: AstNode): T | void {}
   visitArrayType(node: ArrayType, parent?: AstNode): T | void {}
@@ -1194,20 +1323,18 @@ export abstract class AstVisitor<T = void> {
   visitFuncParams(node: FunctionParams, parent?: AstNode): T | void {}
   visitFuncParam(node: FunctionParam, parent?: AstNode): T | void {}
   visitPointerType(node: PointerType, parent?: AstNode): T | void {}
+  visitOptionalType(node: OptionalType, parent?: AstNode): T | void {}
   visitGenericTypeParam(node: GenericTypeParam, parent?: AstNode): T | void {}
-  visitStructFieldExpression(
-    node: StructFieldExpression,
-    parent?: AstNode
-  ): T | void {}
+  visitStructFieldExpr(node: StructFieldExpr, parent?: AstNode): T | void {}
   visitAttributeValue(node: AttributeValue, parent?: AstNode): T | void {}
   visitAttribute(node: Attribute, parent?: AstNode): T | void {}
-  visitIfStatement(node: IfStatement, parent?: AstNode): T | void {}
-  visitWhileStatement(node: WhileStatement, parent?: AstNode): T | void {}
-  visitForStatement(node: ForStatement, parent?: AstNode): T | void {}
-  visitDeferStatement(node: DeferStatement, parent?: AstNode): T | void {}
-  visitReturnStatement(node: ReturnStatement, parent?: AstNode): T | void {}
-  visitContinueStatement(node: AstNode, parent?: AstNode): T | void {}
-  visitBreakStatement(node: AstNode, parent?: AstNode): T | void {}
+  visitIfStmt(node: IfStmt, parent?: AstNode): T | void {}
+  visitWhileStmt(node: WhileStmt, parent?: AstNode): T | void {}
+  visitForStmt(node: ForStmt, parent?: AstNode): T | void {}
+  visitDeferStmt(node: DeferStmt, parent?: AstNode): T | void {}
+  visitReturnStmt(node: ReturnStmt, parent?: AstNode): T | void {}
+  visitContinueStmt(node: AstNode, parent?: AstNode): T | void {}
+  visitBreakStmt(node: AstNode, parent?: AstNode): T | void {}
 }
 
 export function isValueDeclaration(id: Ast): boolean {

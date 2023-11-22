@@ -12,8 +12,8 @@ import {
   fmtLoc,
   fmtReset,
   FormatStyle,
-} from "./format.js";
-import { Range } from "./source.js";
+} from "./format";
+import { Range } from "./source";
 
 export enum Level {
   INFO,
@@ -77,7 +77,7 @@ export class Logger {
   }
 
   print(
-    printer: (diag: Diagnostic, index: number) => void = defaultPrintDiagnostic
+    printer: (diag: Diagnostic, index: number) => void = defaultPrintDiagnostic,
   ) {
     if (!printer) return;
 
@@ -118,28 +118,28 @@ function defaultPrintDiagnostic(diag: Diagnostic) {
       write(
         `${style}${" ".repeat(nspaces - start.line.toString().length)}${
           start.line
-        }|  ${firstLine}${fmtReset}\n`
+        }|  ${firstLine}${fmtReset}\n`,
       );
       write(`${style}${elipsis}...|  ...${fmtReset}\n`);
 
       write(
         `${style}${" ".repeat(nspaces - end.line.toString().length)}${
           end.line
-        }|  ${lastLine}${fmtReset}\n`
+        }|  ${lastLine}${fmtReset}\n`,
       );
     } else {
       write(`${style}${" ".repeat(nspaces)}|${fmtReset}\n`);
       write(
-        `${style}${end.line}|  ${diag.range.lastLine().str()}${fmtReset}\n`
+        `${style}${end.line}|  ${diag.range.lastLine().str()}${fmtReset}\n`,
       );
       write(
-        `${style}${" ".repeat(nspaces)}|  ${fmtReset}${fmt([fmsDim, fmcRed])}`
+        `${style}${" ".repeat(nspaces)}|  ${fmtReset}${fmt([fmsDim, fmcRed])}`,
       );
 
       write(" ".repeat(start.column - 1));
       write("^");
       write(
-        "~".repeat(end.column == start.column ? 0 : end.column - start.column)
+        "~".repeat(end.column == start.column ? 0 : end.column - start.column),
       );
       write(`${fmtReset}\n`);
     }
